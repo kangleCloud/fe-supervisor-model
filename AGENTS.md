@@ -68,12 +68,12 @@
   - `src/api/http`
 - 业务组件禁止手动拼接 `Authorization` 请求头，统一由 HTTP 拦截器注入。
 - 严禁把后端静态 `API_TOKEN`、账号密码、SSH 凭据写入前端源码、`VITE_*` 环境变量或测试快照。
-- `VITE_*` 只允许放公开配置，例如 API 基础地址、超时时间、页面标题等。
+- `VITE_*` 只允许放公开配置，例如 API 基础地址、超时时间、API 前缀、页面标题等。
 - 禁止使用 `v-html` 渲染不可信内容；若确实需要，必须先完成服务端与前端双重净化。
 
 ## 接口约定
 - 认证接口统一走 `/admin/api/auth/*`
-- Supervisor 业务接口统一走 `/api/supervisor/*`
+- Supervisor 业务接口统一走 `/admin/api/supervisor/*`
 - 后端成功响应格式默认是：
 
 ```json

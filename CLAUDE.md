@@ -125,3 +125,4 @@ src/api/<domain>/
 
 - `VITE_API_BASE_URL` —— 后端基础 URL，默认值为 `http://127.0.0.1:18880`
 - `VITE_API_TIMEOUT_MS` —— 请求超时时间，单位毫秒，默认值为 `10000`
+- `VITE_ADMIN_API_PREFIX` —— API 公共前缀，默认值为 `/admin/api`

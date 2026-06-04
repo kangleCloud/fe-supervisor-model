@@ -39,6 +39,7 @@ cp .env.example .env.local
 | --- | --- | --- |
 | `VITE_API_BASE_URL` | 后端 API 基础地址 | `http://127.0.0.1:18880` |
 | `VITE_API_TIMEOUT_MS` | HTTP 请求超时时间，单位毫秒 | `10000` |
+| `VITE_ADMIN_API_PREFIX` | API 公共前缀 | `/admin/api` |
 
 ### 3. 启动开发服务器
 
@@ -47,8 +48,8 @@ pnpm run dev
 pnpm run prod
 ```
 
-- `pnpm run dev`：以 `dev` mode 启动 Vite 开发服务器，读取 `.env.dev`
-- `pnpm run prod`：以 `prod` mode 启动 Vite 开发服务器，读取 `.env.prod`
+- `pnpm run dev`：以 `dev` mode 启动 Vite 开发服务器，读取 `.env.dev`，提供主机地址和 API 前缀
+- `pnpm run prod`：以 `prod` mode 启动 Vite 开发服务器，读取 `.env.prod`，提供主机地址和 API 前缀
 
 ### 4. 常用命令
 
@@ -105,7 +106,7 @@ tests/          Vitest 行为测试
 ## 接口约定
 
 - 认证接口统一走 `/admin/api/auth/*`
-- Supervisor 业务接口统一走 `/api/supervisor/*`
+- Supervisor 业务接口统一走 `/admin/api/supervisor/*`
 - 后端成功响应默认格式如下：
 
 ```json
@@ -118,11 +119,11 @@ tests/          Vitest 行为测试
 
 当前前端已经接入的 Supervisor 能力包括：
 
-- 主机列表 `/api/supervisor/hosts`
-- 服务列表 `/api/supervisor/services`
-- 服务详情 `/api/supervisor/services/:programName`
+- 主机列表 `/admin/api/supervisor/hosts`
+- 服务列表 `/admin/api/supervisor/services`
+- 服务详情 `/admin/api/supervisor/services/:programName`
 - 服务启停、重启、备份、恢复
-- 端口检查 `/api/supervisor/ports/check`
+- 端口检查 `/admin/api/supervisor/ports/check`
 - 主机级 `reread` 与 `update`
 
 ## 测试

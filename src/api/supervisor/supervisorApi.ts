@@ -1,4 +1,5 @@
 import { request } from '@/api/http/httpClient';
+import { ADMIN_API_PREFIX } from '@/api/http/apiPrefix';
 import type {
   HostPayload,
   PortCheckResult,
@@ -12,14 +13,14 @@ import type {
 export function listHosts() {
   return request<SupervisorHost[]>({
     method: 'get',
-    url: '/api/supervisor/hosts',
+    url: `${ADMIN_API_PREFIX}/supervisor/hosts`,
   });
 }
 
 export function listServices(host: string) {
   return request<SupervisorServiceRecord[]>({
     method: 'get',
-    url: '/api/supervisor/services',
+    url: `${ADMIN_API_PREFIX}/supervisor/services`,
     params: { host },
   });
 }
@@ -27,7 +28,7 @@ export function listServices(host: string) {
 export function getServiceDetail(host: string, programName: string) {
   return request<SupervisorServiceDetail>({
     method: 'get',
-    url: `/api/supervisor/services/${encodeURIComponent(programName)}`,
+    url: `${ADMIN_API_PREFIX}/supervisor/services/${encodeURIComponent(programName)}`,
     params: { host },
   });
 }
@@ -35,7 +36,7 @@ export function getServiceDetail(host: string, programName: string) {
 export function createService(payload: ServiceUpsertPayload) {
   return request({
     method: 'post',
-    url: '/api/supervisor/services',
+    url: `${ADMIN_API_PREFIX}/supervisor/services`,
     data: payload,
   });
 }
@@ -43,7 +44,7 @@ export function createService(payload: ServiceUpsertPayload) {
 export function updateService(programName: string, payload: ServiceUpsertPayload) {
   return request({
     method: 'put',
-    url: `/api/supervisor/services/${encodeURIComponent(programName)}`,
+    url: `${ADMIN_API_PREFIX}/supervisor/services/${encodeURIComponent(programName)}`,
     data: payload,
   });
 }
@@ -51,7 +52,7 @@ export function updateService(programName: string, payload: ServiceUpsertPayload
 export function deleteService(host: string, programName: string, deleteBackup = false) {
   return request({
     method: 'delete',
-    url: `/api/supervisor/services/${encodeURIComponent(programName)}`,
+    url: `${ADMIN_API_PREFIX}/supervisor/services/${encodeURIComponent(programName)}`,
     params: { host, deleteBackup },
   });
 }
@@ -59,7 +60,7 @@ export function deleteService(host: string, programName: string, deleteBackup = 
 export function startService(payload: HostPayload, programName: string) {
   return request({
     method: 'post',
-    url: `/api/supervisor/services/${encodeURIComponent(programName)}/start`,
+    url: `${ADMIN_API_PREFIX}/supervisor/services/${encodeURIComponent(programName)}/start`,
     data: payload,
   });
 }
@@ -67,7 +68,7 @@ export function startService(payload: HostPayload, programName: string) {
 export function stopService(payload: HostPayload, programName: string) {
   return request({
     method: 'post',
-    url: `/api/supervisor/services/${encodeURIComponent(programName)}/stop`,
+    url: `${ADMIN_API_PREFIX}/supervisor/services/${encodeURIComponent(programName)}/stop`,
     data: payload,
   });
 }
@@ -75,7 +76,7 @@ export function stopService(payload: HostPayload, programName: string) {
 export function restartService(payload: HostPayload, programName: string) {
   return request({
     method: 'post',
-    url: `/api/supervisor/services/${encodeURIComponent(programName)}/restart`,
+    url: `${ADMIN_API_PREFIX}/supervisor/services/${encodeURIComponent(programName)}/restart`,
     data: payload,
   });
 }
@@ -83,7 +84,7 @@ export function restartService(payload: HostPayload, programName: string) {
 export function backupService(payload: HostPayload, programName: string) {
   return request({
     method: 'post',
-    url: `/api/supervisor/services/${encodeURIComponent(programName)}/backup`,
+    url: `${ADMIN_API_PREFIX}/supervisor/services/${encodeURIComponent(programName)}/backup`,
     data: payload,
   });
 }
@@ -91,7 +92,7 @@ export function backupService(payload: HostPayload, programName: string) {
 export function restoreService(payload: HostPayload, programName: string) {
   return request({
     method: 'post',
-    url: `/api/supervisor/services/${encodeURIComponent(programName)}/restore`,
+    url: `${ADMIN_API_PREFIX}/supervisor/services/${encodeURIComponent(programName)}/restore`,
     data: payload,
   });
 }
@@ -99,7 +100,7 @@ export function restoreService(payload: HostPayload, programName: string) {
 export function checkPort(host: string, port: number, excludeConfig?: string) {
   return request<PortCheckResult>({
     method: 'get',
-    url: '/api/supervisor/ports/check',
+    url: `${ADMIN_API_PREFIX}/supervisor/ports/check`,
     params: {
       host,
       port,
@@ -111,7 +112,7 @@ export function checkPort(host: string, port: number, excludeConfig?: string) {
 export function reread(payload: HostPayload) {
   return request({
     method: 'post',
-    url: '/api/supervisor/reread',
+    url: `${ADMIN_API_PREFIX}/supervisor/reread`,
     data: payload,
   });
 }
@@ -119,7 +120,7 @@ export function reread(payload: HostPayload) {
 export function update(payload: HostPayload) {
   return request({
     method: 'post',
-    url: '/api/supervisor/update',
+    url: `${ADMIN_API_PREFIX}/supervisor/update`,
     data: payload,
   });
 }
@@ -127,7 +128,7 @@ export function update(payload: HostPayload) {
 export function getStatus(host: string, programName?: string) {
   return request<SupervisorStatus[]>({
     method: 'get',
-    url: '/api/supervisor/status',
+    url: `${ADMIN_API_PREFIX}/supervisor/status`,
     params: {
       host,
       programName,

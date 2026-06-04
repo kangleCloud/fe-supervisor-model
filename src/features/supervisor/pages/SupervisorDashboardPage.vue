@@ -88,7 +88,7 @@
       <div class="page__section-header">
         <div>
           <h2 class="page__section-title">服务列表</h2>
-          <p class="page__section-subtitle">列表字段与后端 `/api/supervisor/services` 的真实响应保持一致。</p>
+          <p class="page__section-subtitle">列表字段与后端 `/admin/api/supervisor/services` 的真实响应保持一致。</p>
         </div>
       </div>
 

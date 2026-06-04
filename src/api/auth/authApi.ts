@@ -1,10 +1,11 @@
 import { request } from '@/api/http/httpClient';
+import { ADMIN_API_PREFIX } from '@/api/http/apiPrefix';
 import type { AuthUser, LoginPayload, LoginResult } from '@/api/auth/auth.types';
 
 export function login(payload: LoginPayload) {
   return request<LoginResult>({
     method: 'post',
-    url: '/admin/api/auth/login',
+    url: `${ADMIN_API_PREFIX}/auth/login`,
     data: payload,
     skipAuth: true,
     skipUnauthorizedHandler: true,
@@ -14,7 +15,7 @@ export function login(payload: LoginPayload) {
 export function getCurrentUser() {
   return request<AuthUser>({
     method: 'get',
-    url: '/admin/api/auth/profile',
+    url: `${ADMIN_API_PREFIX}/auth/profile`,
     skipUnauthorizedHandler: true,
   });
 }
@@ -22,7 +23,7 @@ export function getCurrentUser() {
 export function logout() {
   return request<void>({
     method: 'post',
-    url: '/admin/api/auth/logout',
+    url: `${ADMIN_API_PREFIX}/auth/logout`,
     skipUnauthorizedHandler: true,
   });
 }
