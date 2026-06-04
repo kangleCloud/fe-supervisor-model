@@ -65,7 +65,7 @@ export const useAuthStore = defineStore('auth', {
       return true;
     },
     async refreshUser() {
-      const user = await authApi.getMe();
+      const user = await authApi.getCurrentUser();
       this.user = user;
     },
     async initialize() {

@@ -33,7 +33,7 @@
       </div>
 
       <el-alert
-        title="当前前端预期后端提供 /admin/api/auth/login、/me、/logout 接口。"
+        title="当前前端预期后端提供 /admin/api/auth/login、/profile、/logout 接口。"
         type="info"
         :closable="false"
         show-icon
@@ -97,8 +97,8 @@ const route = useRoute();
 const authStore = useAuthStore();
 const formRef = ref<FormInstance>();
 const form = reactive<LoginForm>({
-  username: '',
-  password: '',
+  username: 'admin',
+  password: 'Admin@123456',
 });
 
 const rules: FormRules<LoginForm> = {

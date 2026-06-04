@@ -23,11 +23,15 @@ pnpm install
 
 ### 2. 配置环境变量
 
-参考根目录 `.env.example` 创建本地环境文件：
+根目录默认提供两套启动环境文件：
 
 ```bash
-cp .env.example .env
+cp .env.example .env.local
 ```
+
+- `.env.dev`：供 `pnpm run dev` 使用
+- `.env.prod`：供 `pnpm run prod` 使用
+- `.env.local`：按需补充本地私有覆盖项，不提交仓库
 
 当前公开配置项如下：
 
@@ -39,8 +43,12 @@ cp .env.example .env
 ### 3. 启动开发服务器
 
 ```bash
-pnpm dev
+pnpm run dev
+pnpm run prod
 ```
+
+- `pnpm run dev`：以 `dev` mode 启动 Vite 开发服务器，读取 `.env.dev`
+- `pnpm run prod`：以 `prod` mode 启动 Vite 开发服务器，读取 `.env.prod`
 
 ### 4. 常用命令
 
@@ -51,6 +59,9 @@ pnpm lint
 pnpm test
 pnpm type-check
 ```
+
+- `pnpm build`：执行类型检查并构建生产包
+- `pnpm preview`：预览已构建产物，不参与环境切换启动
 
 ## 目录结构
 
@@ -87,7 +98,7 @@ tests/          Vitest 行为测试
 
 当前登录态处理约定：
 
-- 应用初始化时会从本地存储恢复 token，并调用 `/admin/api/auth/me` 拉取当前用户
+- 应用初始化时会从本地存储恢复 token，并调用 `/admin/api/auth/profile` 拉取当前用户
 - token 过期或接口返回 `401` 后，会触发未授权处理并清理本地会话
 - 登录页 redirect 仅接受站内安全路径，非法重定向会回落到 `/supervisor`
 

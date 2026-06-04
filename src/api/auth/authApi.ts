@@ -11,10 +11,10 @@ export function login(payload: LoginPayload) {
   });
 }
 
-export function getMe() {
+export function getCurrentUser() {
   return request<AuthUser>({
     method: 'get',
-    url: '/admin/api/auth/me',
+    url: '/admin/api/auth/profile',
     skipUnauthorizedHandler: true,
   });
 }

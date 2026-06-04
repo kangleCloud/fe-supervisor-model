@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth/useAuthStore';
 
 vi.mock('@/api/auth/authApi', () => ({
   login: vi.fn(),
-  getMe: vi.fn(),
+  getCurrentUser: vi.fn(),
   logout: vi.fn(),
 }));
 
@@ -40,7 +40,7 @@ describe('useAuthStore', () => {
   it('restores a valid token and fetches current user', async () => {
     window.localStorage.setItem('supervisor_access_token', 'token-2');
     window.localStorage.setItem('supervisor_token_expires_at', '2099-01-01T00:00:00.000Z');
-    vi.mocked(authApi.getMe).mockResolvedValue({
+    vi.mocked(authApi.getCurrentUser).mockResolvedValue({
       username: 'ops',
       displayName: 'Ops User',
       roles: ['admin'],

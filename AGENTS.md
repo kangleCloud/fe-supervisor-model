@@ -35,9 +35,10 @@
 统一使用 `pnpm`，不要引入 `npm` 或 `yarn` 锁文件。
 
 - `pnpm install`：安装依赖
-- `pnpm dev`：启动本地开发服务器
+- `pnpm run dev`：以 `dev` mode 启动本地开发服务器，读取 `.env.dev`
+- `pnpm run prod`：以 `prod` mode 启动本地开发服务器，读取 `.env.prod`
 - `pnpm build`：执行类型检查并构建生产包
-- `pnpm preview`：本地预览构建结果
+- `pnpm preview`：本地预览构建结果，不作为环境切换启动入口
 - `pnpm lint`：执行 ESLint
 - `pnpm test`：运行 Vitest
 - `pnpm type-check`：执行 `vue-tsc`
