@@ -17,7 +17,7 @@ declare module 'axios' {
 
 const httpClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '',
-  timeout: Number(import.meta.env.VITE_API_TIMEOUT_MS || 10000),
+  timeout: Number(import.meta.env.VITE_API_TIMEOUT_MS || 300000),
 });
 
 let unauthorizedHandler: (() => Promise<void> | void) | null = null;

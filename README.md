@@ -38,7 +38,7 @@ cp .env.example .env.local
 | 变量名 | 说明 | 默认示例 |
 | --- | --- | --- |
 | `VITE_API_BASE_URL` | 后端 API 基础地址 | `http://127.0.0.1:18880` |
-| `VITE_API_TIMEOUT_MS` | HTTP 请求超时时间，单位毫秒 | `10000` |
+| `VITE_API_TIMEOUT_MS` | HTTP 请求超时时间，单位毫秒 | `300000` |
 | `VITE_ADMIN_API_PREFIX` | API 公共前缀 | `/admin/api` |
 
 ### 3. 启动开发服务器
