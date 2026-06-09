@@ -12,7 +12,7 @@ import {
   listHosts,
   listServices,
   getServiceDetail,
-  checkPort,
+  importServices,
 } from '@/api/supervisor/supervisorApi';
 
 describe('supervisorApi URLs', () => {
@@ -28,7 +28,7 @@ describe('supervisorApi URLs', () => {
     );
   });
 
-  it('listServices uses /admin/api/supervisor/services', async () => {
+  it('listServices uses /admin/api/supervisor/services with host param', async () => {
     mockRequest.mockResolvedValue([]);
     await listServices('host-1');
     expect(mockRequest).toHaveBeenCalledWith(
@@ -50,13 +50,24 @@ describe('supervisorApi URLs', () => {
     );
   });
 
-  it('checkPort uses /admin/api/supervisor/ports/check', async () => {
-    mockRequest.mockResolvedValue({ conflicts: [] });
-    await checkPort('host-1', 8080);
+  it('importServices DRY_RUN uses /admin/api/supervisor/imports', async () => {
+    mockRequest.mockResolvedValue({});
+    await importServices({ host: 'host-1', mode: 'DRY_RUN' });
     expect(mockRequest).toHaveBeenCalledWith(
       expect.objectContaining({
-        url: '/admin/api/supervisor/ports/check',
-        params: expect.objectContaining({ host: 'host-1', port: 8080 }),
+        url: '/admin/api/supervisor/imports',
+        data: { host: 'host-1', mode: 'DRY_RUN' },
+      }),
+    );
+  });
+
+  it('importServices APPLY uses /admin/api/supervisor/imports', async () => {
+    mockRequest.mockResolvedValue({});
+    await importServices({ host: 'host-1', mode: 'APPLY' });
+    expect(mockRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: '/admin/api/supervisor/imports',
+        data: { host: 'host-1', mode: 'APPLY' },
       }),
     );
   });

@@ -1,20 +1,12 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    :title="mode === 'create' ? '新增服务' : '编辑服务'"
+    title="新增服务"
     width="760px"
     top="5vh"
     @close="emit('update:modelValue', false)"
   >
     <div class="service-form">
-      <el-alert
-        v-if="mode === 'edit'"
-        title="编辑模式下，jobName / moduleName 会按现有 programName 与 jarName 自动推断；若后端命名规则更复杂，请手动校正。"
-        type="warning"
-        :closable="false"
-        show-icon
-      />
-
       <el-form ref="formRef" :model="draft" :rules="rules" label-position="top">
         <el-row :gutter="16">
           <el-col :xs="24" :md="12">
@@ -77,62 +69,39 @@
             </el-form-item>
           </el-col>
         </el-row>
-
-        <div class="service-form__footer-row">
-          <el-form-item label="变更后立即启动">
-            <el-switch v-model="draft.autoStart" />
-          </el-form-item>
-          <el-button :icon="Connection" plain :loading="checkingPort" @click="handleCheckPort">检测端口冲突</el-button>
-        </div>
       </el-form>
-
-      <el-alert
-        v-if="portCheckMessage"
-        :title="portCheckMessage"
-        :type="portCheckType"
-        :closable="false"
-        show-icon
-      />
     </div>
 
     <template #footer>
       <div class="service-form__actions">
         <el-button @click="emit('update:modelValue', false)">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSubmit">
-          {{ mode === 'create' ? '创建服务' : '保存变更' }}
-        </el-button>
+        <el-button type="primary" :loading="submitting" @click="handleSubmit">创建服务</el-button>
       </div>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { Connection } from '@element-plus/icons-vue';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
-import { computed, reactive, ref, watch } from 'vue';
+import { reactive, ref, watch } from 'vue';
 
-import { checkPort } from '@/api/supervisor/supervisorApi';
-import type { ServiceUpsertPayload } from '@/api/supervisor/supervisor.types';
+import type { ServiceCreatePayload } from '@/api/supervisor/supervisor.types';
 
 const props = defineProps<{
   modelValue: boolean;
-  mode: 'create' | 'edit';
   submitting: boolean;
-  initialValue: ServiceUpsertPayload;
+  initialValue: ServiceCreatePayload;
 }>();
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
-  submit: [payload: ServiceUpsertPayload];
+  submit: [payload: ServiceCreatePayload];
 }>();
 
 const formRef = ref<FormInstance>();
-const checkingPort = ref(false);
-const portCheckMessage = ref('');
-const portCheckType = ref<'success' | 'warning'>('success');
-const draft = reactive<ServiceUpsertPayload>({ ...props.initialValue });
+const draft = reactive<ServiceCreatePayload>({ ...props.initialValue });
 
-const rules: FormRules<ServiceUpsertPayload> = {
+const rules: FormRules<ServiceCreatePayload> = {
   host: [{ required: true, message: '请选择主机', trigger: 'change' }],
   jobName: [{ required: true, message: '请输入业务名称', trigger: 'blur' }],
   moduleName: [{ required: true, message: '请输入模块名称', trigger: 'blur' }],
@@ -148,35 +117,9 @@ watch(
   () => props.initialValue,
   (value) => {
     Object.assign(draft, value);
-    portCheckMessage.value = '';
   },
   { deep: true, immediate: true },
 );
-
-const excludeConfig = computed(() => props.mode === 'edit' && draft.configName ? draft.configName : undefined);
-
-async function handleCheckPort() {
-  checkingPort.value = true;
-  portCheckMessage.value = '';
-
-  try {
-    const result = await checkPort(draft.host, draft.port, excludeConfig.value);
-
-    if (result.conflicts.length) {
-      portCheckType.value = 'warning';
-      portCheckMessage.value = `检测到 ${result.conflicts.length} 个端口冲突，请调整配置后再提交。`;
-      return;
-    }
-
-    portCheckType.value = 'success';
-    portCheckMessage.value = '端口检测通过，当前主机没有发现冲突。';
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '端口检测失败';
-    ElMessage.error(message);
-  } finally {
-    checkingPort.value = false;
-  }
-}
 
 async function handleSubmit() {
   const isValid = await formRef.value?.validate().catch(() => false);
@@ -198,14 +141,6 @@ async function handleSubmit() {
 
 .service-form__port {
   width: 100%;
-}
-
-.service-form__footer-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
 }
 
 .service-form__actions {

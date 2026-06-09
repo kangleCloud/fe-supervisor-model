@@ -38,12 +38,22 @@
           <p class="page__section-subtitle">先选择目标主机，再执行服务层面的查询与操作。</p>
         </div>
         <div class="dashboard__header-actions">
-          <el-button :icon="Plus" :disabled="!selectedHost" type="primary" @click="openCreateDialog">
+          <el-button :icon="Plus" :disabled="!selectedHost || selectedHostRecord?.executorType === 'ansible'" type="primary" @click="openCreateDialog">
             新增服务
           </el-button>
-          <el-button :icon="RefreshLeft" :disabled="!selectedHost" plain @click="handleReread">reread</el-button>
-          <el-button :icon="RefreshRight" :disabled="!selectedHost" plain @click="handleUpdate">update</el-button>
+          <el-button :icon="Upload" :disabled="!selectedHost" plain @click="openImportDialog">
+            初始化导入
+          </el-button>
         </div>
+      </div>
+
+      <div v-if="selectedHostRecord?.executorType === 'ansible'" class="dashboard__readonly-notice">
+        <el-alert title="远端主机只读" type="info" :closable="false" show-icon>
+          <template #default>
+            <p>当前主机为 <code>ansible</code> 远端只读主机，不支持修改现场配置文件。</p>
+            <p>如需查看远端服务，请先执行<strong>初始化导入</strong>，将现有配置快照写入数据库后再查看。</p>
+          </template>
+        </el-alert>
       </div>
 
       <div class="dashboard__filters">
@@ -51,12 +61,12 @@
           v-model="selectedHost"
           class="dashboard__host-select"
           placeholder="请选择主机"
-          @change="loadServices"
+          @change="onHostChange"
         >
           <el-option v-for="host in enabledHosts" :key="host.ip" :label="`${host.name} (${host.ip})`" :value="host.ip" />
         </el-select>
 
-        <el-input v-model="keyword" :prefix-icon="Search" clearable placeholder="搜索 programName、configName、Jar 名称" />
+        <el-input v-model="keyword" :prefix-icon="Search" clearable placeholder="搜索 programName、configPath、Jar 名称" />
 
         <el-select v-model="statusFilter" placeholder="状态">
           <el-option label="全部状态" value="ALL" />
@@ -68,18 +78,18 @@
         </el-select>
       </div>
 
-      <div v-if="selectedHostRecord" class="dashboard__host-meta">
+      <div class="dashboard__host-meta">
         <div class="dashboard__host-meta-item">
           <span>主机名称</span>
-          <strong>{{ selectedHostRecord.name }}</strong>
+          <strong>{{ selectedHostRecord?.name || '-' }}</strong>
         </div>
         <div class="dashboard__host-meta-item">
           <span>执行器</span>
-          <strong>{{ selectedHostRecord.executorType }}</strong>
+          <strong>{{ selectedHostRecord?.executorType || '-' }}</strong>
         </div>
         <div class="dashboard__host-meta-item">
           <span>Ansible Pattern</span>
-          <strong>{{ selectedHostRecord.ansiblePattern || '-' }}</strong>
+          <strong>{{ selectedHostRecord?.ansiblePattern || '-' }}</strong>
         </div>
       </div>
     </section>
@@ -106,57 +116,54 @@
             <template #default="{ row }">
               <div class="dashboard__program">
                 <div class="dashboard__program-name">{{ row.programName }}</div>
-                <div class="dashboard__program-meta">{{ row.configName }}</div>
+                <div class="dashboard__program-meta">{{ row.configPath || row.configName }}</div>
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="120">
+          <el-table-column label="状态" width="110">
             <template #default="{ row }">
               <StatusTag :state="row.status?.state" />
             </template>
           </el-table-column>
-          <el-table-column prop="port" label="端口" width="100" />
-          <el-table-column prop="active" label="环境" width="110" />
-          <el-table-column prop="jarName" label="Jar 包" min-width="160" />
-          <el-table-column prop="javaPath" label="Java 路径" min-width="240" show-overflow-tooltip />
-          <el-table-column label="操作" width="340" fixed="right">
+          <el-table-column label="文件状态" width="120">
             <template #default="{ row }">
-              <div class="dashboard__row-actions">
-                <el-tooltip content="详情">
-                  <el-button circle plain :icon="View" @click="openDetail(row.programName)" />
-                </el-tooltip>
-                <el-tooltip content="启动">
-                  <el-button circle plain :icon="VideoPlay" @click="handleServiceCommand('start', row.programName)" />
-                </el-tooltip>
-                <el-tooltip content="停止">
-                  <el-button circle plain :icon="VideoPause" @click="handleServiceCommand('stop', row.programName)" />
-                </el-tooltip>
-                <el-tooltip content="重启">
-                  <el-button circle plain :icon="RefreshRight" @click="handleServiceCommand('restart', row.programName)" />
-                </el-tooltip>
-                <el-tooltip content="备份">
-                  <el-button circle plain :icon="DocumentCopy" @click="handleBackup(row.programName)" />
-                </el-tooltip>
-                <el-tooltip content="还原">
-                  <el-button circle plain :icon="RefreshLeft" @click="handleRestore(row.programName)" />
-                </el-tooltip>
-                <el-tooltip content="编辑">
-                  <el-button circle plain :icon="EditPen" @click="openEditDialog(row)" />
-                </el-tooltip>
-                <el-tooltip content="删除">
-                  <el-button circle plain type="danger" :icon="Delete" @click="handleDelete(row.programName)" />
-                </el-tooltip>
-              </div>
+              <FileStateTag :file-state="row.fileState" />
+            </template>
+          </el-table-column>
+          <el-table-column label="纳管模式" width="110">
+            <template #default="{ row }">
+              <ManageModeTag :mode="row.manageMode" />
+            </template>
+          </el-table-column>
+          <el-table-column prop="port" label="端口" width="80" />
+          <el-table-column prop="active" label="环境" width="90" />
+          <el-table-column prop="jarName" label="Jar 包" min-width="160" />
+          <el-table-column label="操作" width="80" fixed="right">
+            <template #default="{ row }">
+              <el-tooltip content="详情">
+                <el-button circle plain :icon="View" @click="openDetail(row.programName)" />
+              </el-tooltip>
             </template>
           </el-table-column>
         </el-table>
 
-        <EmptyState
-          v-if="!loadingServices && !filteredServices.length"
-          :icon="Box"
-          title="没有可显示的服务"
-          description="调整筛选条件，或先创建一条新的服务配置。"
-        />
+        <template v-if="!loadingServices && !filteredServices.length">
+          <div v-if="isRemoteHost">
+            <EmptyState
+              :icon="Upload"
+              title="远端主机尚未导入"
+              description="当前主机没有服务数据，请先执行初始化导入以扫描远端配置并写入数据库。"
+            >
+              <el-button type="primary" @click="openImportDialog">执行初始化导入</el-button>
+            </EmptyState>
+          </div>
+          <EmptyState
+            v-else
+            :icon="Box"
+            title="没有可显示的服务"
+            description="调整筛选条件，或先创建一条新的服务配置。"
+          />
+        </template>
       </template>
     </section>
 
@@ -165,9 +172,15 @@
     <ServiceFormDialog
       v-model="formVisible"
       :initial-value="formDraft"
-      :mode="formMode"
       :submitting="submittingForm"
       @submit="handleFormSubmit"
+    />
+
+    <ImportDialog
+      v-model="importVisible"
+      :host="selectedHost"
+      :loading="importLoading"
+      @done="onImportDone"
     />
   </div>
 </template>
@@ -175,50 +188,37 @@
 <script setup lang="ts">
 import {
   Box,
-  Delete,
-  DocumentCopy,
-  EditPen,
   Plus,
   Refresh,
-  RefreshLeft,
-  RefreshRight,
   Search,
-  VideoPause,
-  VideoPlay,
+  Upload,
   View,
 } from '@element-plus/icons-vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import { computed, onMounted, ref } from 'vue';
 
 import {
-  backupService,
   createService,
-  deleteService,
   getServiceDetail,
   listHosts,
   listServices,
-  reread,
-  restartService,
-  restoreService,
-  startService,
-  stopService,
-  update as updateHost,
-  updateService,
 } from '@/api/supervisor/supervisorApi';
 import type {
-  ServiceUpsertPayload,
+  ServiceCreatePayload,
   SupervisorHost,
   SupervisorServiceDetail,
   SupervisorServiceRecord,
 } from '@/api/supervisor/supervisor.types';
 import EmptyState from '@/components/EmptyState.vue';
+import FileStateTag from '@/features/supervisor/components/FileStateTag.vue';
+import ManageModeTag from '@/features/supervisor/components/ManageModeTag.vue';
 import ServiceDetailDrawer from '@/features/supervisor/components/ServiceDetailDrawer.vue';
 import ServiceFormDialog from '@/features/supervisor/components/ServiceFormDialog.vue';
 import StatusTag from '@/features/supervisor/components/StatusTag.vue';
 import {
-  buildDraftFromService,
   createEmptyServiceDraft,
 } from '@/features/supervisor/utils/serviceDraft';
+import ImportDialog from '@/features/supervisor/components/ImportDialog.vue';
 
 const hosts = ref<SupervisorHost[]>([]);
 const services = ref<SupervisorServiceRecord[]>([]);
@@ -231,16 +231,18 @@ const loadingDetail = ref(false);
 const currentDetail = ref<SupervisorServiceDetail | null>(null);
 const detailVisible = ref(false);
 const formVisible = ref(false);
-const formMode = ref<'create' | 'edit'>('create');
-const formDraft = ref<ServiceUpsertPayload>(createEmptyServiceDraft(''));
-const editingProgramName = ref('');
+const formDraft = ref<ServiceCreatePayload>(createEmptyServiceDraft(''));
 const submittingForm = ref(false);
+const importVisible = ref(false);
+const importLoading = ref(false);
 
 const enabledHosts = computed(() => hosts.value.filter((host) => host.enabled));
 
 const selectedHostRecord = computed(() => {
   return hosts.value.find((host) => host.ip === selectedHost.value) || null;
 });
+
+const isRemoteHost = computed(() => selectedHostRecord.value?.executorType === 'ansible');
 
 const filteredServices = computed(() => {
   return services.value.filter((service) => {
@@ -250,8 +252,8 @@ const filteredServices = computed(() => {
     const matchesKeyword =
       !normalizedKeyword ||
       service.programName.toLowerCase().includes(normalizedKeyword) ||
-      service.configName.toLowerCase().includes(normalizedKeyword) ||
-      service.jarName.toLowerCase().includes(normalizedKeyword);
+      (service.configPath && service.configPath.toLowerCase().includes(normalizedKeyword)) ||
+      (service.jarName && service.jarName.toLowerCase().includes(normalizedKeyword));
 
     const matchesStatus = statusFilter.value === 'ALL' || state === statusFilter.value;
 
@@ -314,6 +316,13 @@ async function loadServices() {
   }
 }
 
+function onHostChange() {
+  keyword.value = '';
+  statusFilter.value = 'ALL';
+  importVisible.value = false;
+  void loadServices();
+}
+
 async function openDetail(programName: string) {
   if (!selectedHost.value) {
     return;
@@ -333,155 +342,31 @@ async function openDetail(programName: string) {
 }
 
 function openCreateDialog() {
-  formMode.value = 'create';
-  editingProgramName.value = '';
   formDraft.value = createEmptyServiceDraft(selectedHost.value);
   formVisible.value = true;
 }
 
-async function openEditDialog(service: SupervisorServiceRecord) {
-  if (!selectedHost.value) {
-    return;
-  }
-
-  try {
-    const detail = await getServiceDetail(selectedHost.value, service.programName);
-    formMode.value = 'edit';
-    editingProgramName.value = service.programName;
-    formDraft.value = buildDraftFromService(selectedHost.value, detail);
-    formVisible.value = true;
-  } catch (error) {
-    handleError(error, '加载服务详情失败');
-  }
+function openImportDialog() {
+  importVisible.value = true;
 }
 
-async function handleFormSubmit(payload: ServiceUpsertPayload) {
+async function handleFormSubmit(payload: ServiceCreatePayload) {
   submittingForm.value = true;
 
   try {
-    if (formMode.value === 'create') {
-      await createService(payload);
-      ElMessage.success('服务创建成功');
-    } else {
-      await updateService(editingProgramName.value, payload);
-      ElMessage.success('服务更新成功');
-    }
-
+    await createService(payload);
+    ElMessage.success('服务创建成功');
     formVisible.value = false;
     await loadServices();
   } catch (error) {
-    handleError(error, formMode.value === 'create' ? '创建服务失败' : '更新服务失败');
+    handleError(error, '创建服务失败');
   } finally {
     submittingForm.value = false;
   }
 }
 
-async function handleServiceCommand(command: 'start' | 'stop' | 'restart', programName: string) {
-  if (!selectedHost.value) {
-    return;
-  }
-
-  try {
-    const payload = { host: selectedHost.value };
-
-    if (command === 'start') {
-      await startService(payload, programName);
-      ElMessage.success('启动命令已发送');
-    }
-
-    if (command === 'stop') {
-      await stopService(payload, programName);
-      ElMessage.success('停止命令已发送');
-    }
-
-    if (command === 'restart') {
-      await restartService(payload, programName);
-      ElMessage.success('重启命令已发送');
-    }
-
-    await loadServices();
-  } catch (error) {
-    handleError(error, `${command} 命令执行失败`);
-  }
-}
-
-async function handleBackup(programName: string) {
-  if (!selectedHost.value) {
-    return;
-  }
-
-  try {
-    await backupService({ host: selectedHost.value }, programName);
-    ElMessage.success('备份成功');
-  } catch (error) {
-    handleError(error, '备份失败');
-  }
-}
-
-async function handleRestore(programName: string) {
-  if (!selectedHost.value) {
-    return;
-  }
-
-  try {
-    await restoreService({ host: selectedHost.value }, programName);
-    ElMessage.success('还原成功');
-    await loadServices();
-  } catch (error) {
-    handleError(error, '还原失败');
-  }
-}
-
-async function handleDelete(programName: string) {
-  if (!selectedHost.value) {
-    return;
-  }
-
-  try {
-    await ElMessageBox.confirm(`确认删除服务 ${programName} 吗？该操作会先自动备份原配置。`, '删除确认', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-    });
-
-    await deleteService(selectedHost.value, programName, false);
-    ElMessage.success('删除成功');
-    await loadServices();
-  } catch (error) {
-    if (error === 'cancel') {
-      return;
-    }
-
-    handleError(error, '删除失败');
-  }
-}
-
-async function handleReread() {
-  if (!selectedHost.value) {
-    return;
-  }
-
-  try {
-    await reread({ host: selectedHost.value });
-    ElMessage.success('reread 已执行');
-    await loadServices();
-  } catch (error) {
-    handleError(error, '执行 reread 失败');
-  }
-}
-
-async function handleUpdate() {
-  if (!selectedHost.value) {
-    return;
-  }
-
-  try {
-    await updateHost({ host: selectedHost.value });
-    ElMessage.success('update 已执行');
-    await loadServices();
-  } catch (error) {
-    handleError(error, '执行 update 失败');
-  }
+function onImportDone() {
+  void loadServices();
 }
 
 function handleError(error: unknown, fallbackMessage: string) {
@@ -528,10 +413,15 @@ function handleError(error: unknown, fallbackMessage: string) {
   flex-wrap: wrap;
 }
 
+.dashboard__readonly-notice {
+  margin-top: 16px;
+}
+
 .dashboard__filters {
   display: grid;
   grid-template-columns: minmax(220px, 280px) minmax(240px, 1fr) minmax(160px, 200px);
   gap: 12px;
+  margin-top: 16px;
 }
 
 .dashboard__host-select {
@@ -575,12 +465,6 @@ function handleError(error: unknown, fallbackMessage: string) {
 .dashboard__program-meta {
   color: #6b7280;
   font-size: 12px;
-}
-
-.dashboard__row-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: nowrap;
 }
 
 @media (max-width: 1280px) {
