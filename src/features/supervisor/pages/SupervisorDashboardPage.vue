@@ -6,7 +6,7 @@
           <h2 class="page__section-title">运行概览</h2>
           <p class="page__section-subtitle">按主机与服务状态快速查看当前管控范围。</p>
         </div>
-        <el-button :icon="Refresh" :loading="loadingHosts || loadingServices" plain @click="loadAll">
+        <el-button :icon="Refresh" :loading="loadingHosts || loadingServices || refreshingStatus" plain @click="loadAll">
           刷新全部
         </el-button>
       </div>
@@ -38,11 +38,19 @@
           <p class="page__section-subtitle">先选择目标主机，再执行服务层面的查询与操作。</p>
         </div>
         <div class="dashboard__header-actions">
-          <el-button :icon="Plus" :disabled="!selectedHost || selectedHostRecord?.executorType === 'ansible'" type="primary" @click="openCreateDialog">
+          <el-button
+            :icon="Plus"
+            :disabled="!selectedHost || selectedHostRecord?.executorType === 'ansible'"
+            type="primary"
+            @click="openCreateDialog"
+          >
             新增服务
           </el-button>
           <el-button :icon="Upload" :disabled="!selectedHost" plain @click="openImportDialog">
             初始化导入
+          </el-button>
+          <el-button :icon="RefreshRight" :disabled="!selectedHost" :loading="refreshingStatus" plain @click="handleRefreshStatus">
+            刷新状态
           </el-button>
         </div>
       </div>
@@ -66,16 +74,30 @@
           <el-option v-for="host in enabledHosts" :key="host.ip" :label="`${host.name} (${host.ip})`" :value="host.ip" />
         </el-select>
 
-        <el-input v-model="keyword" :prefix-icon="Search" clearable placeholder="搜索 programName、configPath、Jar 名称" />
+        <el-input
+          v-model="keyword"
+          :prefix-icon="Search"
+          clearable
+          placeholder="搜索 programName、configName、jobName、moduleName、port"
+          @keyup.enter="handleSearch"
+        />
 
-        <el-select v-model="statusFilter" placeholder="状态">
+        <el-select v-model="statusFilter" placeholder="状态" @change="handleStatusChange">
           <el-option label="全部状态" value="ALL" />
           <el-option label="RUNNING" value="RUNNING" />
           <el-option label="STOPPED" value="STOPPED" />
           <el-option label="STARTING" value="STARTING" />
+          <el-option label="STOPPING" value="STOPPING" />
+          <el-option label="BACKOFF" value="BACKOFF" />
           <el-option label="FATAL" value="FATAL" />
           <el-option label="EXITED" value="EXITED" />
+          <el-option label="UNKNOWN" value="UNKNOWN" />
         </el-select>
+
+        <div class="dashboard__filter-actions">
+          <el-button :icon="Search" type="primary" @click="handleSearch">查询</el-button>
+          <el-button plain @click="handleResetFilters">重置</el-button>
+        </div>
       </div>
 
       <div class="dashboard__host-meta">
@@ -111,7 +133,7 @@
       />
 
       <template v-else>
-        <el-table v-loading="loadingServices" :data="filteredServices" row-key="programName" class="dashboard__table">
+        <el-table v-loading="loadingServices" :data="serviceRecords" row-key="programName" class="dashboard__table">
           <el-table-column label="程序名" min-width="210">
             <template #default="{ row }">
               <div class="dashboard__program">
@@ -122,12 +144,7 @@
           </el-table-column>
           <el-table-column label="状态" width="110">
             <template #default="{ row }">
-              <StatusTag :state="row.status?.state" />
-            </template>
-          </el-table-column>
-          <el-table-column label="文件状态" width="120">
-            <template #default="{ row }">
-              <FileStateTag :file-state="row.fileState" />
+              <StatusTag :state="row.status" />
             </template>
           </el-table-column>
           <el-table-column label="纳管模式" width="110">
@@ -136,8 +153,11 @@
             </template>
           </el-table-column>
           <el-table-column prop="port" label="端口" width="80" />
+          <el-table-column prop="pid" label="PID" width="100" />
+          <el-table-column prop="uptime" label="Uptime" min-width="120" />
           <el-table-column prop="active" label="环境" width="90" />
           <el-table-column prop="jarName" label="Jar 包" min-width="160" />
+          <el-table-column prop="updateTime" label="更新时间" min-width="180" />
           <el-table-column label="操作" width="80" fixed="right">
             <template #default="{ row }">
               <el-tooltip content="详情">
@@ -147,8 +167,8 @@
           </el-table-column>
         </el-table>
 
-        <template v-if="!loadingServices && !filteredServices.length">
-          <div v-if="isRemoteHost">
+        <template v-if="!loadingServices && !serviceRecords.length">
+          <div v-if="showImportEmptyState">
             <EmptyState
               :icon="Upload"
               title="远端主机尚未导入"
@@ -164,6 +184,19 @@
             description="调整筛选条件，或先创建一条新的服务配置。"
           />
         </template>
+
+        <div v-if="servicePage.total > 0" class="dashboard__pagination">
+          <el-pagination
+            :current-page="currentPage"
+            :page-size="pageSize"
+            :page-sizes="[10, 20, 50]"
+            :total="servicePage.total"
+            layout="total, sizes, prev, pager, next"
+            background
+            @current-change="handlePageChange"
+            @size-change="handlePageSizeChange"
+          />
+        </div>
       </template>
     </section>
 
@@ -179,7 +212,6 @@
     <ImportDialog
       v-model="importVisible"
       :host="selectedHost"
-      :loading="importLoading"
       @done="onImportDone"
     />
   </div>
@@ -190,6 +222,7 @@ import {
   Box,
   Plus,
   Refresh,
+  RefreshRight,
   Search,
   Upload,
   View,
@@ -202,15 +235,16 @@ import {
   getServiceDetail,
   listHosts,
   listServices,
+  refreshServiceStatus,
 } from '@/api/supervisor/supervisorApi';
 import type {
+  PagedServiceResponse,
   ServiceCreatePayload,
+  SupervisorState,
   SupervisorHost,
   SupervisorServiceDetail,
-  SupervisorServiceRecord,
 } from '@/api/supervisor/supervisor.types';
 import EmptyState from '@/components/EmptyState.vue';
-import FileStateTag from '@/features/supervisor/components/FileStateTag.vue';
 import ManageModeTag from '@/features/supervisor/components/ManageModeTag.vue';
 import ServiceDetailDrawer from '@/features/supervisor/components/ServiceDetailDrawer.vue';
 import ServiceFormDialog from '@/features/supervisor/components/ServiceFormDialog.vue';
@@ -220,13 +254,28 @@ import {
 } from '@/features/supervisor/utils/serviceDraft';
 import ImportDialog from '@/features/supervisor/components/ImportDialog.vue';
 
+const DEFAULT_PAGE_SIZE = 10;
+
+function createEmptyServicePage(): PagedServiceResponse {
+  return {
+    records: [],
+    page: 1,
+    pageSize: DEFAULT_PAGE_SIZE,
+    total: 0,
+    pages: 0,
+  };
+}
+
 const hosts = ref<SupervisorHost[]>([]);
-const services = ref<SupervisorServiceRecord[]>([]);
+const servicePage = ref<PagedServiceResponse>(createEmptyServicePage());
 const selectedHost = ref('');
 const keyword = ref('');
 const statusFilter = ref('ALL');
+const currentPage = ref(1);
+const pageSize = ref(DEFAULT_PAGE_SIZE);
 const loadingHosts = ref(false);
 const loadingServices = ref(false);
+const refreshingStatus = ref(false);
 const loadingDetail = ref(false);
 const currentDetail = ref<SupervisorServiceDetail | null>(null);
 const detailVisible = ref(false);
@@ -234,7 +283,6 @@ const formVisible = ref(false);
 const formDraft = ref<ServiceCreatePayload>(createEmptyServiceDraft(''));
 const submittingForm = ref(false);
 const importVisible = ref(false);
-const importLoading = ref(false);
 
 const enabledHosts = computed(() => hosts.value.filter((host) => host.enabled));
 
@@ -243,31 +291,24 @@ const selectedHostRecord = computed(() => {
 });
 
 const isRemoteHost = computed(() => selectedHostRecord.value?.executorType === 'ansible');
-
-const filteredServices = computed(() => {
-  return services.value.filter((service) => {
-    const normalizedKeyword = keyword.value.trim().toLowerCase();
-    const state = service.status?.state?.toUpperCase() || 'UNKNOWN';
-
-    const matchesKeyword =
-      !normalizedKeyword ||
-      service.programName.toLowerCase().includes(normalizedKeyword) ||
-      (service.configPath && service.configPath.toLowerCase().includes(normalizedKeyword)) ||
-      (service.jarName && service.jarName.toLowerCase().includes(normalizedKeyword));
-
-    const matchesStatus = statusFilter.value === 'ALL' || state === statusFilter.value;
-
-    return matchesKeyword && matchesStatus;
-  });
+const serviceRecords = computed(() => servicePage.value.records);
+const hasActiveFilters = computed(() => {
+  return (
+    keyword.value.trim().length > 0 ||
+    statusFilter.value !== 'ALL' ||
+    currentPage.value !== 1 ||
+    pageSize.value !== DEFAULT_PAGE_SIZE
+  );
 });
+const showImportEmptyState = computed(() => isRemoteHost.value && !hasActiveFilters.value);
 
 const metrics = computed(() => {
-  const running = services.value.filter((service) => service.status?.state?.toUpperCase() === 'RUNNING').length;
+  const running = serviceRecords.value.filter((service) => service.status === 'RUNNING').length;
 
   return {
     hosts: hosts.value.length,
     enabledHosts: enabledHosts.value.length,
-    services: services.value.length,
+    services: servicePage.value.total,
     running,
   };
 });
@@ -301,25 +342,65 @@ async function loadHosts() {
 
 async function loadServices() {
   if (!selectedHost.value) {
-    services.value = [];
+    servicePage.value = createEmptyServicePage();
     return;
   }
 
   loadingServices.value = true;
 
   try {
-    services.value = await listServices(selectedHost.value);
+    const normalizedKeyword = keyword.value.trim();
+    const status = statusFilter.value === 'ALL' ? undefined : (statusFilter.value as SupervisorState);
+
+    servicePage.value = await listServices({
+      host: selectedHost.value,
+      keyword: normalizedKeyword || undefined,
+      status,
+      page: currentPage.value,
+      pageSize: pageSize.value,
+    });
   } catch (error) {
     handleError(error, '加载服务列表失败');
+    servicePage.value = createEmptyServicePage();
   } finally {
     loadingServices.value = false;
   }
 }
 
 function onHostChange() {
+  currentPage.value = 1;
+  importVisible.value = false;
   keyword.value = '';
   statusFilter.value = 'ALL';
-  importVisible.value = false;
+  void loadServices();
+}
+
+function handleStatusChange() {
+  currentPage.value = 1;
+  void loadServices();
+}
+
+function handleSearch() {
+  currentPage.value = 1;
+  void loadServices();
+}
+
+function handleResetFilters() {
+  keyword.value = '';
+  statusFilter.value = 'ALL';
+  currentPage.value = 1;
+  pageSize.value = DEFAULT_PAGE_SIZE;
+  void loadServices();
+}
+
+function handlePageChange(page: number) {
+  currentPage.value = page;
+  void loadServices();
+}
+
+function handlePageSizeChange(size: number) {
+  pageSize.value = size;
+  currentPage.value = 1;
   void loadServices();
 }
 
@@ -348,6 +429,24 @@ function openCreateDialog() {
 
 function openImportDialog() {
   importVisible.value = true;
+}
+
+async function handleRefreshStatus() {
+  if (!selectedHost.value) {
+    return;
+  }
+
+  refreshingStatus.value = true;
+
+  try {
+    const result = await refreshServiceStatus(selectedHost.value);
+    await loadServices();
+    ElMessage.success(`状态刷新完成：更新 ${result.updated} 条，未匹配 ${result.missing} 条`);
+  } catch (error) {
+    handleError(error, '刷新服务状态失败');
+  } finally {
+    refreshingStatus.value = false;
+  }
 }
 
 async function handleFormSubmit(payload: ServiceCreatePayload) {
@@ -419,13 +518,19 @@ function handleError(error: unknown, fallbackMessage: string) {
 
 .dashboard__filters {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(240px, 1fr) minmax(160px, 200px);
+  grid-template-columns: minmax(220px, 280px) minmax(240px, 1fr) minmax(160px, 200px) auto;
   gap: 12px;
   margin-top: 16px;
 }
 
 .dashboard__host-select {
   width: 100%;
+}
+
+.dashboard__filter-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .dashboard__host-meta {
@@ -456,6 +561,12 @@ function handleError(error: unknown, fallbackMessage: string) {
 
 .dashboard__table {
   width: 100%;
+}
+
+.dashboard__pagination {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .dashboard__program-name {

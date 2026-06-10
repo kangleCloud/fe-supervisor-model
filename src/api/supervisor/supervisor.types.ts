@@ -6,9 +6,19 @@ export interface SupervisorHost {
   ansiblePattern: string | null;
 }
 
+export type SupervisorState =
+  | 'RUNNING'
+  | 'STOPPED'
+  | 'FATAL'
+  | 'BACKOFF'
+  | 'STARTING'
+  | 'STOPPING'
+  | 'EXITED'
+  | 'UNKNOWN';
+
 export interface SupervisorStatus {
-  program_name: string;
-  state: string;
+  programName: string;
+  state: SupervisorState;
   raw: string;
 }
 
@@ -16,7 +26,48 @@ export type ManageMode = 'TEMPLATE_MANAGED' | 'IMPORTED_READONLY';
 
 export type FileState = 'MATCH' | 'MISSING' | 'MISMATCH';
 
-export interface SupervisorServiceRecord {
+export interface ServiceListRecord {
+  id: number;
+  host: string;
+  jobName: string | null;
+  moduleName: string | null;
+  programName: string;
+  configName: string;
+  configPath: string;
+  fileName: string;
+  manageMode: ManageMode;
+  metadataComplete: boolean;
+  parseWarnings: string[];
+  javaPath: string | null;
+  active: string | null;
+  port: number | null;
+  jarName: string | null;
+  xms: string | null;
+  xmx: string | null;
+  user: string | null;
+  status: SupervisorState;
+  pid: string | null;
+  uptime: string | null;
+  updateTime: string | null;
+}
+
+export interface PagedServiceResponse {
+  records: ServiceListRecord[];
+  page: number;
+  pageSize: number;
+  total: number;
+  pages: number;
+}
+
+export interface ServiceListQuery {
+  host?: string;
+  keyword?: string;
+  status?: SupervisorState;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface SupervisorServiceDetail {
   id: number;
   host: string;
   jobName: string | null;
@@ -38,9 +89,6 @@ export interface SupervisorServiceRecord {
   user: string | null;
   status: SupervisorStatus | null;
   fileState: FileState;
-}
-
-export interface SupervisorServiceDetail extends SupervisorServiceRecord {
   expectedContent: string;
   remoteContent?: string;
 }
@@ -97,4 +145,11 @@ export interface ImportReport {
   mode: ImportMode;
   summary: ImportSummary;
   items: ImportItem[];
+}
+
+export interface StatusRefreshResponse {
+  host: string;
+  total: number;
+  updated: number;
+  missing: number;
 }

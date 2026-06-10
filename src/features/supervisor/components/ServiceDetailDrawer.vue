@@ -41,7 +41,7 @@
         </el-descriptions>
       </section>
 
-      <section v-if="detail.parseWarnings.length > 0" class="service-detail__section">
+      <section class="service-detail__section">
         <div class="page__section-header">
           <div>
             <h3 class="page__section-title">治理信息</h3>

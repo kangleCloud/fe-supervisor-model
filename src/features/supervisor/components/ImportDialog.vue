@@ -68,7 +68,7 @@
 
     <template #footer>
       <div class="import-dialog__actions">
-        <el-button v-if="!report" :loading="loading" :icon="View" @click="handleDryRun">
+        <el-button v-if="!report" :loading="internalLoading" :icon="View" @click="handleDryRun">
           预检导入
         </el-button>
         <template v-else>
@@ -76,6 +76,7 @@
           <el-button
             v-if="report.mode === 'DRY_RUN' && report.summary.planned > 0"
             type="primary"
+            :loading="internalLoading"
             @click="handleApply"
           >
             确认导入
@@ -104,7 +105,6 @@ import ImportResultTag from '@/features/supervisor/components/ImportResultTag.vu
 const props = defineProps<{
   modelValue: boolean;
   host: string;
-  loading: boolean;
 }>();
 
 const emit = defineEmits<{

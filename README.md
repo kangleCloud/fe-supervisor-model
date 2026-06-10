@@ -120,11 +120,11 @@ tests/          Vitest 行为测试
 当前前端已经接入的 Supervisor 能力包括：
 
 - 主机列表 `/admin/api/supervisor/hosts`
+- 初始化导入 `/admin/api/supervisor/imports`
 - 服务列表 `/admin/api/supervisor/services`
 - 服务详情 `/admin/api/supervisor/services/:programName`
-- 服务启停、重启、备份、恢复
-- 端口检查 `/admin/api/supervisor/ports/check`
-- 主机级 `reread` 与 `update`
+- 新增服务 `/admin/api/supervisor/services`（仅本地主机）
+- 远端 `ansible` 主机仅可只读查看，需通过初始化导入将配置快照落库后再使用列表和详情接口
 
 ## 测试
 

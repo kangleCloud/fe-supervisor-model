@@ -3,10 +3,12 @@ import { ADMIN_API_PREFIX } from '@/api/http/apiPrefix';
 import type {
   ImportMode,
   ImportReport,
+  PagedServiceResponse,
   ServiceCreatePayload,
+  ServiceListQuery,
+  StatusRefreshResponse,
   SupervisorHost,
   SupervisorServiceDetail,
-  SupervisorServiceRecord,
 } from '@/api/supervisor/supervisor.types';
 
 export function listHosts() {
@@ -16,11 +18,11 @@ export function listHosts() {
   });
 }
 
-export function listServices(host: string) {
-  return request<SupervisorServiceRecord[]>({
+export function listServices(params: ServiceListQuery) {
+  return request<PagedServiceResponse>({
     method: 'get',
     url: `${ADMIN_API_PREFIX}/supervisor/services`,
-    params: { host },
+    params,
   });
 }
 
@@ -45,5 +47,13 @@ export function importServices(payload: { host: string; mode: ImportMode }) {
     method: 'post',
     url: `${ADMIN_API_PREFIX}/supervisor/imports`,
     data: payload,
+  });
+}
+
+export function refreshServiceStatus(host: string) {
+  return request<StatusRefreshResponse>({
+    method: 'post',
+    url: `${ADMIN_API_PREFIX}/supervisor/services/status/refresh`,
+    params: { host },
   });
 }

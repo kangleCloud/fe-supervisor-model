@@ -9,10 +9,12 @@ vi.mock('@/api/http/httpClient', () => ({
 }));
 
 import {
-  listHosts,
-  listServices,
+  createService,
   getServiceDetail,
   importServices,
+  listHosts,
+  listServices,
+  refreshServiceStatus,
 } from '@/api/supervisor/supervisorApi';
 
 describe('supervisorApi URLs', () => {
@@ -28,13 +30,25 @@ describe('supervisorApi URLs', () => {
     );
   });
 
-  it('listServices uses /admin/api/supervisor/services with host param', async () => {
-    mockRequest.mockResolvedValue([]);
-    await listServices('host-1');
+  it('listServices uses /admin/api/supervisor/services with paged query params', async () => {
+    mockRequest.mockResolvedValue({});
+    await listServices({
+      host: 'host-1',
+      keyword: 'demo',
+      status: 'RUNNING',
+      page: 2,
+      pageSize: 20,
+    });
     expect(mockRequest).toHaveBeenCalledWith(
       expect.objectContaining({
         url: '/admin/api/supervisor/services',
-        params: { host: 'host-1' },
+        params: {
+          host: 'host-1',
+          keyword: 'demo',
+          status: 'RUNNING',
+          page: 2,
+          pageSize: 20,
+        },
       }),
     );
   });
@@ -70,5 +84,40 @@ describe('supervisorApi URLs', () => {
         data: { host: 'host-1', mode: 'APPLY' },
       }),
     );
+  });
+
+  it('refreshServiceStatus uses /admin/api/supervisor/services/status/refresh', async () => {
+    mockRequest.mockResolvedValue({});
+    await refreshServiceStatus('host-1');
+    expect(mockRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: '/admin/api/supervisor/services/status/refresh',
+        params: { host: 'host-1' },
+      }),
+    );
+  });
+
+  it('createService uses /admin/api/supervisor/services with only v1-allowed fields', async () => {
+    mockRequest.mockResolvedValue({});
+    const payload = {
+      host: 'host-1',
+      jobName: 'demo',
+      moduleName: 'app',
+      javaPath: '/usr/local/jdk17/bin/java',
+      active: 'prod',
+      port: 9001,
+      jarName: 'app.jar',
+      configName: '',
+      xms: '128m',
+      xmx: '128m',
+      user: 'root',
+    };
+    await createService(payload);
+
+    const call = mockRequest.mock.calls[0][0];
+    expect(call.url).toBe('/admin/api/supervisor/services');
+    expect(call.method).toBe('post');
+    expect(call.data).toEqual(payload);
+    expect(call.data).not.toHaveProperty('autoStart');
   });
 });
