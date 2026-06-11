@@ -1,5 +1,10 @@
 <template>
   <div v-if="hasContent" class="op-result">
+    <div class="op-result__header">
+      <span class="op-result__title">操作结果</span>
+      <el-button size="small" :icon="Close" text @click="emit('close')" />
+    </div>
+
     <section v-if="syncedFields && syncedFields.length" class="op-result__section">
       <div class="op-result__section-title">同步字段</div>
       <div class="op-result__fields">
@@ -31,6 +36,7 @@
 </template>
 
 <script setup lang="ts">
+import { Close } from '@element-plus/icons-vue';
 import { computed } from 'vue';
 
 import type { CommandResults } from '@/api/supervisor/supervisor.types';
@@ -39,6 +45,10 @@ const props = defineProps<{
   syncedFields?: string[];
   warnings?: string[];
   commandResults?: CommandResults;
+}>();
+
+const emit = defineEmits<{
+  close: [];
 }>();
 
 const hasContent = computed(() =>
@@ -52,9 +62,22 @@ const hasContent = computed(() =>
 .op-result {
   margin-top: 16px;
   padding: 16px;
-  background: #f7f8fa;
-  border: 1px solid #e5e7eb;
+  background: var(--surface-muted);
+  border: 1px solid var(--surface-strong);
   border-radius: 8px;
+}
+
+.op-result__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.op-result__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .op-result__section {
@@ -68,7 +91,7 @@ const hasContent = computed(() =>
 .op-result__section-title {
   font-size: 13px;
   font-weight: 600;
-  color: #374151;
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
@@ -82,8 +105,8 @@ const hasContent = computed(() =>
 .op-result__step {
   margin-bottom: 8px;
   padding: 10px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  background: var(--surface);
+  border: 1px solid var(--surface-strong);
   border-radius: 6px;
 }
 
@@ -101,7 +124,7 @@ const hasContent = computed(() =>
 .op-result__step-label {
   font-size: 12px;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--text-tertiary);
 }
 
 .op-result__code {

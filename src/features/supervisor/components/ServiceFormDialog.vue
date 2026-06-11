@@ -106,6 +106,7 @@ const emit = defineEmits<{
 const draft = reactive<Record<string, any>>({ ...props.initialValue });
 const formRef = ref<FormInstance>();
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const rules: FormRules<Record<string, any>> = {
   jobName: [{ required: true, message: '请输入业务名称', trigger: 'blur' }],
   moduleName: [{ required: true, message: '请输入模块名称', trigger: 'blur' }],

@@ -10,20 +10,38 @@
     </div>
 
     <template v-else-if="detail">
+      <el-alert
+        v-if="detail.isArchived"
+        title="只读归档"
+        description="该服务已归档，不可执行同步等纳管操作。"
+        type="info"
+        :closable="false"
+        show-icon
+        class="service-detail__archived-alert"
+      />
+
       <div class="service-detail__toolbar">
         <StatusTag :state="detail.status?.state" />
         <ManageModeTag :mode="detail.manageMode" />
         <el-tag v-if="detail.isArchived" type="danger" effect="plain">已归档</el-tag>
-        <el-button :icon="Refresh" size="small" plain :loading="syncing" @click="handleSync">
+        <el-button
+          v-if="!detail.isArchived"
+          :icon="Refresh"
+          size="small"
+          plain
+          :loading="syncing"
+          @click="handleSync"
+        >
           同步现场
         </el-button>
       </div>
 
+      <!-- 基础信息 -->
       <section class="service-detail__section">
         <div class="page__section-header">
           <div>
-            <h3 class="page__section-title">{{ detail.programName }}</h3>
-            <p class="page__section-subtitle">{{ detail.configPath }}</p>
+            <h3 class="page__section-title">基础信息</h3>
+            <p class="page__section-subtitle">{{ detail.programName }}</p>
           </div>
         </div>
         <el-descriptions :column="2" border>
@@ -33,56 +51,19 @@
           </el-descriptions-item>
           <el-descriptions-item label="配置文件名">{{ detail.configName }}</el-descriptions-item>
           <el-descriptions-item label="文件名称">{{ detail.fileName }}</el-descriptions-item>
-          <el-descriptions-item label="程序名">{{ detail.contentProgramName }}</el-descriptions-item>
+          <el-descriptions-item label="程序名（配置中）">{{ detail.contentProgramName }}</el-descriptions-item>
           <el-descriptions-item label="归档状态">{{ detail.isArchived ? '已归档' : '未归档' }}</el-descriptions-item>
+          <el-descriptions-item label="归档时间">{{ detail.archivedAt || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="还原时间">{{ detail.restoredAt || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="更新时间">{{ detail.updatedAt || '-' }}</el-descriptions-item>
         </el-descriptions>
       </section>
 
+      <!-- 模板信息 -->
       <section class="service-detail__section">
         <div class="page__section-header">
           <div>
-            <h3 class="page__section-title">运行快照</h3>
-          </div>
-        </div>
-        <el-descriptions :column="2" border>
-          <el-descriptions-item label="运行状态">
-            <StatusTag :state="detail.status?.state" />
-          </el-descriptions-item>
-          <el-descriptions-item label="PID">{{ detail.pid || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="Uptime">{{ detail.uptime || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="最近同步">{{ detail.lastSyncAt || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="同步状态">{{ detail.syncStatus || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="同步错误">
-            <span v-if="detail.syncError" class="service-detail__error-text">{{ detail.syncError }}</span>
-            <span v-else>-</span>
-          </el-descriptions-item>
-        </el-descriptions>
-      </section>
-
-      <section class="service-detail__section">
-        <div class="page__section-header">
-          <div>
-            <h3 class="page__section-title">运行配置</h3>
-          </div>
-        </div>
-        <el-descriptions :column="1" border>
-          <el-descriptions-item label="Command">
-            <code class="service-detail__inline-code">{{ detail.command || '-' }}</code>
-          </el-descriptions-item>
-          <el-descriptions-item label="Directory">
-            <code class="service-detail__inline-code">{{ detail.directory || '-' }}</code>
-          </el-descriptions-item>
-          <el-descriptions-item label="Stdout Logfile">
-            <code class="service-detail__inline-code">{{ detail.stdoutLogfile || '-' }}</code>
-          </el-descriptions-item>
-          <el-descriptions-item label="备份状态">{{ detail.hasBackup ? '有备份' : '无备份' }}</el-descriptions-item>
-        </el-descriptions>
-      </section>
-
-      <section class="service-detail__section">
-        <div class="page__section-header">
-          <div>
-            <h3 class="page__section-title">模板元数据</h3>
+            <h3 class="page__section-title">模板信息</h3>
           </div>
         </div>
         <el-descriptions :column="2" border>
@@ -105,6 +86,52 @@
         </div>
       </section>
 
+      <!-- 运行配置 -->
+      <section class="service-detail__section">
+        <div class="page__section-header">
+          <div>
+            <h3 class="page__section-title">运行配置</h3>
+          </div>
+        </div>
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="运行状态">
+            <StatusTag :state="detail.status?.state" />
+          </el-descriptions-item>
+          <el-descriptions-item label="PID">{{ detail.pid || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="Uptime">{{ detail.uptime || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="备份状态">{{ detail.hasBackup ? '有备份' : '无备份' }}</el-descriptions-item>
+        </el-descriptions>
+        <el-descriptions :column="1" border class="service-detail__descriptions--compact">
+          <el-descriptions-item label="Command">
+            <code class="service-detail__inline-code">{{ detail.command || '-' }}</code>
+          </el-descriptions-item>
+          <el-descriptions-item label="Directory">
+            <code class="service-detail__inline-code">{{ detail.directory || '-' }}</code>
+          </el-descriptions-item>
+          <el-descriptions-item label="Stdout Logfile">
+            <code class="service-detail__inline-code">{{ detail.stdoutLogfile || '-' }}</code>
+          </el-descriptions-item>
+        </el-descriptions>
+      </section>
+
+      <!-- 同步结果 -->
+      <section class="service-detail__section">
+        <div class="page__section-header">
+          <div>
+            <h3 class="page__section-title">同步结果</h3>
+          </div>
+        </div>
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="最近同步">{{ detail.lastSyncAt || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="同步状态">{{ detail.syncStatus || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="同步错误">
+            <span v-if="detail.syncError" class="service-detail__error-text">{{ detail.syncError }}</span>
+            <span v-else>-</span>
+          </el-descriptions-item>
+        </el-descriptions>
+      </section>
+
+      <!-- 内容快照 -->
       <section class="service-detail__section">
         <div class="page__section-header">
           <div>
@@ -182,6 +209,10 @@ async function handleSync() {
   padding: 0 12px;
 }
 
+.service-detail__archived-alert {
+  margin-bottom: 16px;
+}
+
 .service-detail__section + .service-detail__section {
   margin-top: 20px;
 }
@@ -194,13 +225,17 @@ async function handleSync() {
   flex-wrap: wrap;
 }
 
+.service-detail__descriptions--compact {
+  margin-top: 12px;
+}
+
 .service-detail__warnings-section {
   margin-top: 12px;
 }
 
 .service-detail__warnings-label {
   font-size: 13px;
-  color: #6b7280;
+  color: var(--text-tertiary);
   margin-bottom: 6px;
 }
 
@@ -211,17 +246,17 @@ async function handleSync() {
 }
 
 .service-detail__error-text {
-  color: #b42318;
+  color: var(--danger);
   font-size: 12px;
 }
 
 .service-detail__inline-code {
   font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
   font-size: 12px;
-  background: #f3f4f6;
+  background: var(--surface-muted);
   padding: 2px 6px;
   border-radius: 4px;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .service-detail__content {

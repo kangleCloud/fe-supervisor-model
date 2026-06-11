@@ -171,7 +171,7 @@ function handleError(error: unknown, fallbackMessage: string) {
 .import-dialog__host {
   margin: 0 0 20px;
   font-size: 14px;
-  color: #6b7280;
+  color: var(--text-tertiary);
 }
 
 .import-dialog__result {
@@ -188,16 +188,16 @@ function handleError(error: unknown, fallbackMessage: string) {
 
 .import-dialog__summary-item {
   padding: 16px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--surface-strong);
   border-radius: 8px;
-  background: #fcfcfd;
+  background: var(--surface);
   text-align: center;
 }
 
 .import-dialog__summary-label {
   display: block;
   font-size: 13px;
-  color: #6b7280;
+  color: var(--text-tertiary);
   margin-bottom: 8px;
 }
 

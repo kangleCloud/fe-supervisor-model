@@ -63,6 +63,10 @@ function mountDrawer(props: { modelValue: boolean; loading: boolean; detail: typ
           props: ['type', 'effect'],
           template: '<span><slot /></span>',
         },
+        ElAlert: {
+          props: ['title', 'description', 'type', 'closable', 'showIcon'],
+          template: '<div class="el-alert-stub"><strong>{{ title }}</strong><p>{{ description }}</p><slot /></div>',
+        },
         ElButton: { template: '<button><slot /></button>' },
         ElIcon: { template: '<i />' },
         ManageModeTag: {
@@ -128,5 +132,51 @@ describe('ServiceDetailDrawer', () => {
     });
 
     expect(wrapper.text()).toContain('Connection refused');
+  });
+
+  it('shows read-only archived alert when detail is archived', () => {
+    const wrapper = mountDrawer({
+      modelValue: true,
+      loading: false,
+      detail: { ...detail, isArchived: true },
+    });
+
+    expect(wrapper.text()).toContain('只读归档');
+  });
+
+  it('hides sync button when detail is archived', () => {
+    const wrapper = mountDrawer({
+      modelValue: true,
+      loading: false,
+      detail: { ...detail, isArchived: true },
+    });
+
+    expect(wrapper.text()).not.toContain('同步现场');
+  });
+
+  it('shows sync button when detail is not archived', () => {
+    const wrapper = mountDrawer({
+      modelValue: true,
+      loading: false,
+      detail,
+    });
+
+    expect(wrapper.text()).toContain('同步现场');
+  });
+
+  it('shows archived and restored timestamps in basic info section', () => {
+    const wrapper = mountDrawer({
+      modelValue: true,
+      loading: false,
+      detail: {
+        ...detail,
+        isArchived: true,
+        archivedAt: '2026-06-09 10:00:00',
+        restoredAt: '2026-06-11 08:00:00',
+      },
+    });
+
+    expect(wrapper.text()).toContain('2026-06-09 10:00:00');
+    expect(wrapper.text()).toContain('2026-06-11 08:00:00');
   });
 });

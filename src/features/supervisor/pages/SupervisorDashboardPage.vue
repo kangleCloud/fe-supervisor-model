@@ -125,6 +125,7 @@
           row-key="programName"
           class="dashboard__table"
           highlight-current-row
+          :row-class-name="getRowClass"
         >
           <el-table-column label="程序名" min-width="200">
             <template #default="{ row }">
@@ -160,7 +161,7 @@
             <template #default="{ row }">
               <div v-if="row.isArchived" class="dashboard__row-actions">
                 <el-tooltip content="详情">
-                  <el-button circle plain :icon="View" size="small" @click="openDetail(row.programName)" />
+                  <el-button circle plain :icon="View" size="small" data-testid="action-detail" @click="openDetail(row.programName)" />
                 </el-tooltip>
                 <el-tooltip content="还原">
                   <el-button
@@ -168,13 +169,14 @@
                     plain
                     :icon="RefreshLeft"
                     size="small"
+                    data-testid="action-restore"
                     @click="handleAction('restore', row)"
                   />
                 </el-tooltip>
               </div>
               <div v-else class="dashboard__row-actions">
                 <el-tooltip content="详情">
-                  <el-button circle plain :icon="View" size="small" @click="openDetail(row.programName)" />
+                  <el-button circle plain :icon="View" size="small" data-testid="action-detail" @click="openDetail(row.programName)" />
                 </el-tooltip>
                 <el-tooltip content="同步">
                   <el-button
@@ -182,6 +184,7 @@
                     plain
                     :icon="Refresh"
                     size="small"
+                    data-testid="action-sync"
                     :loading="actionLoading[row.programName] === 'sync'"
                     @click="handleSyncRow(row)"
                   />
@@ -193,6 +196,7 @@
                       plain
                       :icon="VideoPlay"
                       size="small"
+                      data-testid="action-start"
                       :loading="actionLoading[row.programName] === 'start'"
                       @click="handleAction('start', row)"
                     />
@@ -205,6 +209,7 @@
                       plain
                       :icon="VideoPause"
                       size="small"
+                      data-testid="action-stop"
                       :loading="actionLoading[row.programName] === 'stop'"
                       @click="handleAction('stop', row)"
                     />
@@ -215,6 +220,7 @@
                       plain
                       :icon="RefreshRight"
                       size="small"
+                      data-testid="action-restart"
                       :loading="actionLoading[row.programName] === 'restart'"
                       @click="handleAction('restart', row)"
                     />
@@ -224,9 +230,9 @@
                   <el-button circle plain :icon="MoreFilled" size="small" />
                   <template #dropdown>
                     <el-dropdown-menu>
-                      <el-dropdown-item command="edit" :icon="EditPen">编辑</el-dropdown-item>
-                      <el-dropdown-item command="archive" :icon="Box">归档</el-dropdown-item>
-                      <el-dropdown-item command="delete" :icon="Delete" divided>删除</el-dropdown-item>
+                      <el-dropdown-item command="edit" :icon="EditPen" data-testid="action-edit">编辑</el-dropdown-item>
+                      <el-dropdown-item command="archive" :icon="Box" data-testid="action-archive">归档</el-dropdown-item>
+                      <el-dropdown-item command="delete" :icon="Delete" data-testid="action-delete" divided>删除</el-dropdown-item>
                     </el-dropdown-menu>
                   </template>
                 </el-dropdown>
@@ -283,6 +289,7 @@
       :synced-fields="lastResult.syncedFields"
       :warnings="lastResult.warnings"
       :command-results="lastResult.commandResults"
+      @close="lastResult = null"
     />
   </div>
 </template>
@@ -386,6 +393,12 @@ function showStartAction(status: SupervisorState): boolean {
 
 function showStopAction(status: SupervisorState): boolean {
   return status === 'RUNNING';
+}
+
+function getRowClass({ row }: { row: ServiceListRecord }): string {
+  if (row.isArchived) return 'dashboard__row--archived';
+  if (row.status === 'FATAL') return 'dashboard__row--fatal';
+  return '';
 }
 
 onMounted(async () => {
@@ -562,13 +575,34 @@ async function handleAction(
   action: 'start' | 'stop' | 'restart' | 'archive' | 'restore' | 'delete',
   row: ServiceListRecord,
 ) {
-  if (action === 'delete') {
+  if (action === 'delete' || action === 'archive' || action === 'restore') {
+    const confirmMessages: Record<string, { message: string; title: string; type: 'warning' | 'info'; confirmText: string }> = {
+      delete: {
+        message: `确认删除服务 ${row.programName} 吗？`,
+        title: '删除确认',
+        type: 'warning',
+        confirmText: '删除',
+      },
+      archive: {
+        message: `确认归档服务 ${row.programName} 吗？归档后服务不可被纳管操作。`,
+        title: '归档确认',
+        type: 'warning',
+        confirmText: '归档',
+      },
+      restore: {
+        message: `确认还原服务 ${row.programName} 吗？`,
+        title: '还原确认',
+        type: 'info',
+        confirmText: '还原',
+      },
+    };
+    const cfg = confirmMessages[action];
     try {
-      await ElMessageBox.confirm(
-        `确认删除服务 ${row.programName} 吗？`,
-        '删除确认',
-        { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
-      );
+      await ElMessageBox.confirm(cfg.message, cfg.title, {
+        type: cfg.type,
+        confirmButtonText: cfg.confirmText,
+        cancelButtonText: '取消',
+      });
     } catch {
       return;
     }
@@ -651,7 +685,7 @@ async function handleSyncRow(row: ServiceListRecord) {
   }
 }
 
-async function onDetailSync(detail: SupervisorServiceDetail) {
+async function onDetailSync() {
   await loadServices();
   await refreshDetail();
 }
@@ -675,9 +709,9 @@ function handleError(error: unknown, fallbackMessage: string) {
 
 .dashboard__kpi {
   padding: 14px 16px;
-  border: 1px solid #dde1e6;
+  border: 1px solid var(--surface-strong);
   border-radius: 6px;
-  background: #fcfcfd;
+  background: var(--surface);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -685,7 +719,7 @@ function handleError(error: unknown, fallbackMessage: string) {
 
 .dashboard__kpi-label {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-tertiary);
 }
 
 .dashboard__kpi-value {
@@ -694,11 +728,11 @@ function handleError(error: unknown, fallbackMessage: string) {
 }
 
 .dashboard__kpi-value--success {
-  color: #1f7a57;
+  color: var(--success);
 }
 
 .dashboard__kpi-value--muted {
-  color: #6b7280;
+  color: var(--text-tertiary);
 }
 
 .dashboard__header-actions {
@@ -735,7 +769,7 @@ function handleError(error: unknown, fallbackMessage: string) {
 }
 
 .dashboard__program-meta {
-  color: #6b7280;
+  color: var(--text-tertiary);
   font-size: 12px;
   font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
 }
@@ -751,6 +785,14 @@ function handleError(error: unknown, fallbackMessage: string) {
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+
+:deep(.dashboard__row--archived) {
+  background-color: #fef2f2;
+}
+
+:deep(.dashboard__row--fatal) {
+  background-color: #fffbeb;
 }
 
 @media (max-width: 1280px) {

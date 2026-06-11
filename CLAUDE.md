@@ -15,6 +15,10 @@ pnpm test                       # 运行 Vitest 测试套件
 pnpm type-check                 # 执行 vue-tsc --noEmit
 ```
 
+```bash
+pnpm test -- --run <glob>          # 运行单个测试文件，例如 pnpm test -- --run tests/supervisorApi
+```
+
 所有命令都使用 `pnpm`。
 
 `@` 别名映射到 `src/`，该配置同时存在于 `vite.config.ts` 和 `tsconfig.json` 中。
@@ -117,12 +121,84 @@ src/api/<domain>/
 
 业务组件不应该直接操作 `localStorage`，而应通过 store 或 `tokenStorage.ts` 进行访问。
 
+### Supervisor 功能架构
+
+`SupervisorDashboardPage.vue` 是唯一的主页面（路由 `/supervisor`），所有状态使用 Composition API 在组件内管理，不使用 Pinia store。
+
+页面为固定四区布局：**概览 KPI 卡 → 筛选栏 → 操作工具栏 → 服务列表 + 分页**。
+
+**组件树：**
+
+```
+SupervisorDashboardPage
+  ├── StatusTag / ManageModeTag           （表格内标签）
+  ├── ServiceDetailDrawer                   （右侧抽屉，v-model 控制）
+  ├── ServiceFormDialog                     （创建/编辑弹窗）
+  ├── ImportDialog                          （两阶段导入弹窗）
+  └── OperationResultPanel                  （动作结果面板）
+```
+
+**动作矩阵（在页面脚本中硬编码）：**
+
+| 记录状态 | 直出按钮 | 更多菜单 |
+|---------|---------|---------|
+| 未归档 + RUNNING | 停止、重启 | 详情、同步、编辑、归档、删除 |
+| 未归档 + STOPPED/EXITED/FATAL/BACKOFF/UNKNOWN | 启动 | 详情、同步、编辑、归档、删除 |
+| 已归档 | 详情、还原 | 无 |
+
+- `delete/archive/restore` 操作前会弹出 `ElMessageBox.confirm` 二次确认
+- 所有动作完成后刷新列表；若详情抽屉打开且目标为同一条记录，同时刷新详情（delete 则关闭详情）
+
+**表单模式：**
+
+- `create`：host 只读展示，提交 `ServiceCreatePayload`（含 `host` 字段）
+- `edit`：host 不进入请求体，走 query 参数，提交 `ServiceUpdatePayload`
+
+`features/supervisor/utils/serviceDraft.ts` 提供工厂函数 `createEmptyServiceDraft(host)` 和 `createEditDraft(source)`，避免在页面中拼接默认值。
+
+### 测试模式
+
+测试使用 **Vitest** + **jsdom** + **@vue/test-utils**。
+
+**API 测试**（`tests/*.test.ts`）：
+
+- 使用 `vi.hoisted()` 声明 mock 函数，再通过 `vi.mock('@/api/http/httpClient', ...)` 注入
+- 调用真实 API 函数，断言 `mockRequest` 被调用时的 `url`、`method`、`params`、`data`
+
+**组件测试**（`tests/*.test.ts`）：
+
+- 使用 `defineComponent` 为 Element Plus 组件编写自定义 stub（`ElTableStub` 等），放在测试文件内
+- `mount()` 后必须 `await flushPromises()` 等待异步副作用完成
+- 页面级测试 mock 整个 `@/api/supervisor/supervisorApi` 和 `element-plus` 的 `ElMessage`/`ElMessageBox`
+- 表单/抽屉组件测试直接传入 props，stub 掉 Element Plus 包装组件
+
+### CSS 设计系统
+
+全局样式在 `src/styles/index.css`，通过 CSS 自定义属性（`:root`）定义设计 token：
+
+| Token | 值 | 用途 |
+|-------|-----|------|
+| `--shell-bg` | `#162028` | 侧栏深色背景 |
+| `--accent` / `--success` | `#1f7a57` | 品牌绿 / 运行态 |
+| `--info-blue` | `#2563eb` | 信息蓝 |
+| `--warning` / `--risk-amber` | `#c27a1a` | 琥珀 / 风险态 |
+| `--danger` | `#b42318` | 错误红 / 危险态 |
+| `--surface` | `#ffffff` | 卡片白 |
+| `--surface-muted` | `#f7f8fa` | 次级灰底 |
+| `--surface-strong` | `#e5e7eb` | 边框灰 |
+
+字体：正文 `Fira Sans`，技术字段/命令结果/配置内容 `Fira Code`。
+
+页面布局使用 `.page` / `.page__section` / `.page__section-header` 工具类。
+
+组件内样式使用 `scoped`，颜色值应引用 CSS 变量（如 `var(--text-tertiary)`），避免硬编码 hex 值。
+
 ### 环境变量
 
-`VITE_*` 变量只在构建时生效，并且是公开的。
+`VITE_*` 变量只在构建时生效。通过 `.env.dev` / `.env.prod` 切换：
 
-当前变量：
+- `VITE_API_BASE_URL` —— 后端基础 URL，dev 默认 `http://127.0.0.1:18881`，prod 默认 `http://127.0.0.1:18880`
+- `VITE_API_TIMEOUT_MS` —— 请求超时时间，默认 `300000`（5 分钟）
+- `VITE_ADMIN_API_PREFIX` —— API 公共前缀，默认 `/admin/api`
 
-- `VITE_API_BASE_URL` —— 后端基础 URL，默认值为 `http://127.0.0.1:18880`
-- `VITE_API_TIMEOUT_MS` —— 请求超时时间，单位毫秒，默认值为 `10000`
-- `VITE_ADMIN_API_PREFIX` —— API 公共前缀，默认值为 `/admin/api`
+通过 `vite --mode dev` 或 `vite --mode prod` 选择环境文件。
