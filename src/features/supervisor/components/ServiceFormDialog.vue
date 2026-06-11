@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="新增服务"
+    :title="mode === 'create' ? '新增服务' : '编辑服务'"
     width="760px"
     top="5vh"
     @close="emit('update:modelValue', false)"
@@ -9,12 +9,12 @@
     <div class="service-form">
       <el-form ref="formRef" :model="draft" :rules="rules" label-position="top">
         <el-row :gutter="16">
-          <el-col :xs="24" :md="12">
+          <el-col v-if="mode === 'create'" :xs="24" :md="12">
             <el-form-item label="目标主机" prop="host">
               <el-input v-model="draft.host" disabled />
             </el-form-item>
           </el-col>
-          <el-col :xs="24" :md="12">
+          <el-col :xs="24" :md="mode === 'create' ? 12 : 12">
             <el-form-item label="运行环境" prop="active">
               <el-input v-model="draft.active" placeholder="prod" />
             </el-form-item>
@@ -75,34 +75,38 @@
     <template #footer>
       <div class="service-form__actions">
         <el-button @click="emit('update:modelValue', false)">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSubmit">创建服务</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleSubmit">
+          {{ mode === 'create' ? '创建服务' : '保存变更' }}
+        </el-button>
       </div>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
+import { type FormInstance, type FormRules } from 'element-plus';
 import { reactive, ref, watch } from 'vue';
 
-import type { ServiceCreatePayload } from '@/api/supervisor/supervisor.types';
+import type { ServiceCreatePayload, ServiceUpdatePayload } from '@/api/supervisor/supervisor.types';
 
 const props = defineProps<{
   modelValue: boolean;
+  mode: 'create' | 'edit';
   submitting: boolean;
-  initialValue: ServiceCreatePayload;
+  initialValue: ServiceCreatePayload | ServiceUpdatePayload;
 }>();
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
-  submit: [payload: ServiceCreatePayload];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  submit: [payload: any];
 }>();
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const draft = reactive<Record<string, any>>({ ...props.initialValue });
 const formRef = ref<FormInstance>();
-const draft = reactive<ServiceCreatePayload>({ ...props.initialValue });
 
-const rules: FormRules<ServiceCreatePayload> = {
-  host: [{ required: true, message: '请选择主机', trigger: 'change' }],
+const rules: FormRules<Record<string, any>> = {
   jobName: [{ required: true, message: '请输入业务名称', trigger: 'blur' }],
   moduleName: [{ required: true, message: '请输入模块名称', trigger: 'blur' }],
   javaPath: [{ required: true, message: '请输入 Java 路径', trigger: 'blur' }],

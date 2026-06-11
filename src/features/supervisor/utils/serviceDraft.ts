@@ -1,4 +1,9 @@
-import type { ServiceCreatePayload } from '@/api/supervisor/supervisor.types';
+import type {
+  ServiceCreatePayload,
+  ServiceUpdatePayload,
+  SupervisorServiceDetail,
+  ServiceListRecord,
+} from '@/api/supervisor/supervisor.types';
 
 export function createEmptyServiceDraft(host: string): ServiceCreatePayload {
   return {
@@ -13,5 +18,20 @@ export function createEmptyServiceDraft(host: string): ServiceCreatePayload {
     xms: '128m',
     xmx: '128m',
     user: 'root',
+  };
+}
+
+export function createEditDraft(source: SupervisorServiceDetail | ServiceListRecord): ServiceUpdatePayload {
+  return {
+    jobName: source.jobName || '',
+    moduleName: source.moduleName || '',
+    javaPath: source.javaPath || '',
+    active: source.active || '',
+    port: source.port || 9001,
+    jarName: source.jarName || '',
+    configName: source.configName,
+    xms: source.xms || '128m',
+    xmx: source.xmx || '128m',
+    user: source.user || 'root',
   };
 }

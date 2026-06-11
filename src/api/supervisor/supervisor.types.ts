@@ -24,8 +24,6 @@ export interface SupervisorStatus {
 
 export type ManageMode = 'TEMPLATE_MANAGED' | 'IMPORTED_READONLY';
 
-export type FileState = 'MATCH' | 'MISSING' | 'MISMATCH';
-
 export interface ServiceListRecord {
   id: number;
   host: string;
@@ -49,6 +47,10 @@ export interface ServiceListRecord {
   pid: string | null;
   uptime: string | null;
   updateTime: string | null;
+  isArchived: boolean;
+  archivedAt: string | null;
+  restoredAt: string | null;
+  hasBackup: boolean;
 }
 
 export interface PagedServiceResponse {
@@ -63,6 +65,7 @@ export interface ServiceListQuery {
   host?: string;
   keyword?: string;
   status?: SupervisorState;
+  archived?: boolean;
   page?: number;
   pageSize?: number;
 }
@@ -70,6 +73,7 @@ export interface ServiceListQuery {
 export interface SupervisorServiceDetail {
   id: number;
   host: string;
+  hostName: string;
   jobName: string | null;
   moduleName: string | null;
   programName: string;
@@ -88,13 +92,38 @@ export interface SupervisorServiceDetail {
   xmx: string | null;
   user: string | null;
   status: SupervisorStatus | null;
-  fileState: FileState;
-  expectedContent: string;
-  remoteContent?: string;
+  pid: string | null;
+  uptime: string | null;
+  command: string | null;
+  directory: string | null;
+  stdoutLogfile: string | null;
+  hasBackup: boolean;
+  configContent: string;
+  backupConfigContent: string | null;
+  lastSyncAt: string | null;
+  syncStatus: string | null;
+  syncError: string | null;
+  isArchived: boolean;
+  archivedAt: string | null;
+  restoredAt: string | null;
+  updatedAt: string | null;
 }
 
 export interface ServiceCreatePayload {
   host: string;
+  jobName: string;
+  moduleName: string;
+  javaPath: string;
+  active: string;
+  port: number;
+  jarName?: string;
+  configName?: string;
+  xms?: string;
+  xmx?: string;
+  user?: string;
+}
+
+export interface ServiceUpdatePayload {
   jobName: string;
   moduleName: string;
   javaPath: string;
@@ -152,4 +181,27 @@ export interface StatusRefreshResponse {
   total: number;
   updated: number;
   missing: number;
+}
+
+export interface CommandStep {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  backupPath?: string;
+}
+
+export interface CommandResults {
+  steps: CommandStep[];
+}
+
+export interface SyncResponse {
+  syncedFields: string[];
+  warnings: string[];
+  commandResults?: CommandResults;
+}
+
+export interface OperationResponse {
+  commandResults?: CommandResults;
+  syncedFields?: string[];
+  warnings?: string[];
 }

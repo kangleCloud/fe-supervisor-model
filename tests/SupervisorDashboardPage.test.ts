@@ -231,11 +231,37 @@ function mountPage() {
         ElSelect: ElSelectStub,
         ElTable: ElTableStub,
         ElTableColumn: ElTableColumnStub,
+        ElDropdown: {
+          template: '<div><slot /><slot name="dropdown" /></div>',
+        },
+        ElDropdownItem: defineComponent({
+          name: 'ElDropdownItem',
+          props: { command: { type: String, default: '' } },
+          emits: ['command'],
+          template: '<button><slot /></button>',
+        }),
+        ElDropdownMenu: {
+          template: '<div><slot /></div>',
+        },
+        ElIcon: {
+          template: '<i />',
+        },
+        ElRadioButton: {
+          template: '<label><slot /></label>',
+        },
+        ElRadioGroup: {
+          props: ['modelValue'],
+          template: '<div><slot /></div>',
+        },
+        ElTag: {
+          template: '<span><slot /></span>',
+        },
         ElTooltip: {
           template: '<div><slot /></div>',
         },
         EmptyState: EmptyStateStub,
         ImportDialog: true,
+        OperationResultPanel: true,
         ManageModeTag: ManageModeTagStub,
         ServiceDetailDrawer: true,
         ServiceFormDialog: true,
@@ -316,6 +342,7 @@ describe('SupervisorDashboardPage', () => {
       host: '127.0.0.1',
       keyword: undefined,
       status: undefined,
+      archived: false,
       page: 1,
       pageSize: 10,
     });
@@ -324,8 +351,7 @@ describe('SupervisorDashboardPage', () => {
     expect(wrapper.text()).toContain('TEMPLATE_MANAGED');
   });
 
-  it('shows the remote import empty state when an ansible host has no records', async () => {
-    mockListHosts.mockResolvedValue([remoteHost]);
+  it('shows empty state when no records for active filter', async () => {
     mockListServices.mockResolvedValue({
       records: [],
       page: 1,
@@ -338,8 +364,7 @@ describe('SupervisorDashboardPage', () => {
 
     await flushPromises();
 
-    expect(wrapper.text()).toContain('远端主机尚未导入');
-    expect(wrapper.text()).toContain('执行初始化导入');
+    expect(wrapper.text()).toContain('没有可显示的服务');
   });
 
   it('requests the next page when pagination changes', async () => {
@@ -355,6 +380,7 @@ describe('SupervisorDashboardPage', () => {
       host: '127.0.0.1',
       keyword: undefined,
       status: undefined,
+      archived: false,
       page: 2,
       pageSize: 10,
     });

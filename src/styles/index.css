@@ -1,27 +1,30 @@
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@400;500;600;700&display=swap');
+
 :root {
   color-scheme: light;
-  font-family:
-    Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Fira Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #111827;
-  background: #f3f5f7;
+  color: #1f2937;
+  background: #eff3f6;
   text-rendering: optimizeLegibility;
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --shell-bg: #16191d;
-  --shell-border: #2a3138;
-  --accent: #1f8f5f;
-  --accent-weak: #e7f5ef;
+  --shell-bg: #162028;
+  --shell-border: #212d37;
+  --accent: #1f7a57;
+  --accent-weak: #e6f3ee;
+  --info-blue: #2563eb;
+  --risk-amber: #c27a1a;
   --surface: #ffffff;
   --surface-muted: #f7f8fa;
   --surface-strong: #e5e7eb;
-  --text-primary: #111827;
+  --text-primary: #1f2937;
   --text-secondary: #4b5563;
   --text-tertiary: #6b7280;
-  --success: #117a4d;
-  --warning: #b45309;
+  --success: #1f7a57;
+  --warning: #c27a1a;
   --danger: #b42318;
 }
 
@@ -37,7 +40,7 @@ body,
 }
 
 body {
-  background: #f3f5f7;
+  background: #eff3f6;
   color: var(--text-primary);
 }
 
@@ -55,7 +58,7 @@ a {
 .page {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .page__section {
@@ -75,14 +78,14 @@ a {
 
 .page__section-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
 }
 
 .page__section-subtitle {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .shell {
@@ -112,11 +115,10 @@ a {
   display: grid;
   place-items: center;
   border-radius: 8px;
-  background: #1f8f5f;
+  background: var(--accent);
   color: #ffffff;
   font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0;
 }
 
 .shell__brand-title {
@@ -181,7 +183,7 @@ a {
 
 .shell__main {
   padding: 24px;
-  background: #f3f5f7;
+  background: #eff3f6;
 }
 
 .empty-state {
@@ -205,6 +207,20 @@ a {
 .empty-state__description {
   margin-top: 6px;
   font-size: 14px;
+}
+
+code {
+  font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 @media (max-width: 1024px) {

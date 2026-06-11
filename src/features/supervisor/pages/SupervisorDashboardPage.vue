@@ -1,33 +1,21 @@
 <template>
   <div class="page">
-    <section class="page__section">
-      <div class="page__section-header">
-        <div>
-          <h2 class="page__section-title">运行概览</h2>
-          <p class="page__section-subtitle">按主机与服务状态快速查看当前管控范围。</p>
-        </div>
-        <el-button :icon="Refresh" :loading="loadingHosts || loadingServices || refreshingStatus" plain @click="loadAll">
-          刷新全部
-        </el-button>
+    <section class="page__section dashboard__kpis">
+      <div class="dashboard__kpi">
+        <div class="dashboard__kpi-label">主机总数</div>
+        <div class="dashboard__kpi-value">{{ metrics.hosts }}</div>
       </div>
-
-      <div class="dashboard__metrics">
-        <div class="dashboard__metric">
-          <div class="dashboard__metric-label">主机总数</div>
-          <div class="dashboard__metric-value">{{ metrics.hosts }}</div>
-        </div>
-        <div class="dashboard__metric">
-          <div class="dashboard__metric-label">启用主机</div>
-          <div class="dashboard__metric-value">{{ metrics.enabledHosts }}</div>
-        </div>
-        <div class="dashboard__metric">
-          <div class="dashboard__metric-label">服务总数</div>
-          <div class="dashboard__metric-value">{{ metrics.services }}</div>
-        </div>
-        <div class="dashboard__metric">
-          <div class="dashboard__metric-label">运行中</div>
-          <div class="dashboard__metric-value dashboard__metric-value--success">{{ metrics.running }}</div>
-        </div>
+      <div class="dashboard__kpi">
+        <div class="dashboard__kpi-label">当前页结果</div>
+        <div class="dashboard__kpi-value">{{ metrics.services }}</div>
+      </div>
+      <div class="dashboard__kpi">
+        <div class="dashboard__kpi-label">运行中</div>
+        <div class="dashboard__kpi-value dashboard__kpi-value--success">{{ metrics.running }}</div>
+      </div>
+      <div class="dashboard__kpi">
+        <div class="dashboard__kpi-label">已归档</div>
+        <div class="dashboard__kpi-value dashboard__kpi-value--muted">{{ metrics.archived }}</div>
       </div>
     </section>
 
@@ -35,43 +23,23 @@
       <div class="page__section-header">
         <div>
           <h2 class="page__section-title">主机与筛选</h2>
-          <p class="page__section-subtitle">先选择目标主机，再执行服务层面的查询与操作。</p>
-        </div>
-        <div class="dashboard__header-actions">
-          <el-button
-            :icon="Plus"
-            :disabled="!selectedHost || selectedHostRecord?.executorType === 'ansible'"
-            type="primary"
-            @click="openCreateDialog"
-          >
-            新增服务
-          </el-button>
-          <el-button :icon="Upload" :disabled="!selectedHost" plain @click="openImportDialog">
-            初始化导入
-          </el-button>
-          <el-button :icon="RefreshRight" :disabled="!selectedHost" :loading="refreshingStatus" plain @click="handleRefreshStatus">
-            刷新状态
-          </el-button>
+          <p class="page__section-subtitle">选择主机、筛选条件查看纳管服务。</p>
         </div>
       </div>
 
-      <div v-if="selectedHostRecord?.executorType === 'ansible'" class="dashboard__readonly-notice">
-        <el-alert title="远端主机只读" type="info" :closable="false" show-icon>
-          <template #default>
-            <p>当前主机为 <code>ansible</code> 远端只读主机，不支持修改现场配置文件。</p>
-            <p>如需查看远端服务，请先执行<strong>初始化导入</strong>，将现有配置快照写入数据库后再查看。</p>
-          </template>
-        </el-alert>
-      </div>
-
-      <div class="dashboard__filters">
+      <div class="dashboard__filter-bar">
         <el-select
           v-model="selectedHost"
           class="dashboard__host-select"
           placeholder="请选择主机"
           @change="onHostChange"
         >
-          <el-option v-for="host in enabledHosts" :key="host.ip" :label="`${host.name} (${host.ip})`" :value="host.ip" />
+          <el-option
+            v-for="h in enabledHosts"
+            :key="h.ip"
+            :label="`${h.name} (${h.ip})`"
+            :value="h.ip"
+          />
         </el-select>
 
         <el-input
@@ -94,24 +62,40 @@
           <el-option label="UNKNOWN" value="UNKNOWN" />
         </el-select>
 
+        <el-radio-group v-model="archiveFilter" @change="handleSearch">
+          <el-radio-button value="false">活跃</el-radio-button>
+          <el-radio-button value="true">已归档</el-radio-button>
+          <el-radio-button value="all">全部</el-radio-button>
+        </el-radio-group>
+
         <div class="dashboard__filter-actions">
           <el-button :icon="Search" type="primary" @click="handleSearch">查询</el-button>
           <el-button plain @click="handleResetFilters">重置</el-button>
         </div>
       </div>
+    </section>
 
-      <div class="dashboard__host-meta">
-        <div class="dashboard__host-meta-item">
-          <span>主机名称</span>
-          <strong>{{ selectedHostRecord?.name || '-' }}</strong>
+    <section class="page__section">
+      <div class="page__section-header">
+        <div>
+          <h2 class="page__section-title">服务操作</h2>
         </div>
-        <div class="dashboard__host-meta-item">
-          <span>执行器</span>
-          <strong>{{ selectedHostRecord?.executorType || '-' }}</strong>
-        </div>
-        <div class="dashboard__host-meta-item">
-          <span>Ansible Pattern</span>
-          <strong>{{ selectedHostRecord?.ansiblePattern || '-' }}</strong>
+        <div class="dashboard__header-actions">
+          <el-button :icon="Plus" type="primary" :disabled="!selectedHost" @click="openCreateDialog">
+            新增服务
+          </el-button>
+          <el-button :icon="Upload" :disabled="!selectedHost" plain @click="openImportDialog">
+            初始化导入
+          </el-button>
+          <el-button
+            :icon="RefreshRight"
+            :disabled="!selectedHost"
+            :loading="refreshingStatus"
+            plain
+            @click="handleRefreshStatus"
+          >
+            刷新状态
+          </el-button>
         </div>
       </div>
     </section>
@@ -120,21 +104,29 @@
       <div class="page__section-header">
         <div>
           <h2 class="page__section-title">服务列表</h2>
-          <p class="page__section-subtitle">列表字段与后端 `/admin/api/supervisor/services` 的真实响应保持一致。</p>
+          <p class="page__section-subtitle">
+            列表字段与后端真实响应保持一致。每行操作根据运行状态控制可用动作。
+          </p>
         </div>
       </div>
 
       <el-alert
         v-if="!enabledHosts.length"
-        title="后端主机白名单为空或全部被禁用，当前无法继续发起服务操作。"
+        title="后端主机白名单为空或全部被禁用。"
         type="warning"
         :closable="false"
         show-icon
       />
 
       <template v-else>
-        <el-table v-loading="loadingServices" :data="serviceRecords" row-key="programName" class="dashboard__table">
-          <el-table-column label="程序名" min-width="210">
+        <el-table
+          v-loading="loadingServices"
+          :data="serviceRecords"
+          row-key="programName"
+          class="dashboard__table"
+          highlight-current-row
+        >
+          <el-table-column label="程序名" min-width="200">
             <template #default="{ row }">
               <div class="dashboard__program">
                 <div class="dashboard__program-name">{{ row.programName }}</div>
@@ -142,46 +134,112 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="110">
-            <template #default="{ row }">
-              <StatusTag :state="row.status" />
-            </template>
-          </el-table-column>
           <el-table-column label="纳管模式" width="110">
             <template #default="{ row }">
               <ManageModeTag :mode="row.manageMode" />
             </template>
           </el-table-column>
-          <el-table-column prop="port" label="端口" width="80" />
-          <el-table-column prop="pid" label="PID" width="100" />
-          <el-table-column prop="uptime" label="Uptime" min-width="120" />
-          <el-table-column prop="active" label="环境" width="90" />
-          <el-table-column prop="jarName" label="Jar 包" min-width="160" />
-          <el-table-column prop="updateTime" label="更新时间" min-width="180" />
-          <el-table-column label="操作" width="80" fixed="right">
+          <el-table-column label="状态" width="110">
             <template #default="{ row }">
-              <el-tooltip content="详情">
-                <el-button circle plain :icon="View" @click="openDetail(row.programName)" />
-              </el-tooltip>
+              <StatusTag :state="row.status" />
+            </template>
+          </el-table-column>
+          <el-table-column prop="pid" label="PID" width="80" />
+          <el-table-column prop="uptime" label="Uptime" width="100" />
+          <el-table-column prop="port" label="端口" width="70" />
+          <el-table-column prop="active" label="环境" width="80" />
+          <el-table-column prop="jarName" label="Jar" min-width="150" />
+          <el-table-column label="归档" width="80">
+            <template #default="{ row }">
+              <el-tag v-if="row.isArchived" type="danger" size="small" effect="plain">是</el-tag>
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="updateTime" label="更新时间" width="170" />
+          <el-table-column label="操作" width="200" fixed="right">
+            <template #default="{ row }">
+              <div v-if="row.isArchived" class="dashboard__row-actions">
+                <el-tooltip content="详情">
+                  <el-button circle plain :icon="View" size="small" @click="openDetail(row.programName)" />
+                </el-tooltip>
+                <el-tooltip content="还原">
+                  <el-button
+                    circle
+                    plain
+                    :icon="RefreshLeft"
+                    size="small"
+                    @click="handleAction('restore', row)"
+                  />
+                </el-tooltip>
+              </div>
+              <div v-else class="dashboard__row-actions">
+                <el-tooltip content="详情">
+                  <el-button circle plain :icon="View" size="small" @click="openDetail(row.programName)" />
+                </el-tooltip>
+                <el-tooltip content="同步">
+                  <el-button
+                    circle
+                    plain
+                    :icon="Refresh"
+                    size="small"
+                    :loading="actionLoading[row.programName] === 'sync'"
+                    @click="handleSyncRow(row)"
+                  />
+                </el-tooltip>
+                <template v-if="showStartAction(row.status)">
+                  <el-tooltip content="启动">
+                    <el-button
+                      circle
+                      plain
+                      :icon="VideoPlay"
+                      size="small"
+                      :loading="actionLoading[row.programName] === 'start'"
+                      @click="handleAction('start', row)"
+                    />
+                  </el-tooltip>
+                </template>
+                <template v-else-if="showStopAction(row.status)">
+                  <el-tooltip content="停止">
+                    <el-button
+                      circle
+                      plain
+                      :icon="VideoPause"
+                      size="small"
+                      :loading="actionLoading[row.programName] === 'stop'"
+                      @click="handleAction('stop', row)"
+                    />
+                  </el-tooltip>
+                  <el-tooltip content="重启">
+                    <el-button
+                      circle
+                      plain
+                      :icon="RefreshRight"
+                      size="small"
+                      :loading="actionLoading[row.programName] === 'restart'"
+                      @click="handleAction('restart', row)"
+                    />
+                  </el-tooltip>
+                </template>
+                <el-dropdown trigger="click" @command="(cmd: string) => handleDropdownAction(cmd, row)">
+                  <el-button circle plain :icon="MoreFilled" size="small" />
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="edit" :icon="EditPen">编辑</el-dropdown-item>
+                      <el-dropdown-item command="archive" :icon="Box">归档</el-dropdown-item>
+                      <el-dropdown-item command="delete" :icon="Delete" divided>删除</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
             </template>
           </el-table-column>
         </el-table>
 
         <template v-if="!loadingServices && !serviceRecords.length">
-          <div v-if="showImportEmptyState">
-            <EmptyState
-              :icon="Upload"
-              title="远端主机尚未导入"
-              description="当前主机没有服务数据，请先执行初始化导入以扫描远端配置并写入数据库。"
-            >
-              <el-button type="primary" @click="openImportDialog">执行初始化导入</el-button>
-            </EmptyState>
-          </div>
           <EmptyState
-            v-else
             :icon="Box"
             title="没有可显示的服务"
-            description="调整筛选条件，或先创建一条新的服务配置。"
+            :description="archiveFilter === 'true' ? '当前没有归档记录。' : '调整筛选条件，或新增一条服务配置。'"
           />
         </template>
 
@@ -192,18 +250,23 @@
             :page-sizes="[10, 20, 50]"
             :total="servicePage.total"
             layout="total, sizes, prev, pager, next"
-            background
-            @current-change="handlePageChange"
-            @size-change="handlePageSizeChange"
+            @current-change="onPageChange"
+            @size-change="onPageSizeChange"
           />
         </div>
       </template>
     </section>
 
-    <ServiceDetailDrawer v-model="detailVisible" :detail="currentDetail" :loading="loadingDetail" />
+    <ServiceDetailDrawer
+      v-model="detailVisible"
+      :detail="currentDetail"
+      :loading="loadingDetail"
+      @sync="onDetailSync"
+    />
 
     <ServiceFormDialog
       v-model="formVisible"
+      :mode="formMode"
       :initial-value="formDraft"
       :submitting="submittingForm"
       @submit="handleFormSubmit"
@@ -212,7 +275,14 @@
     <ImportDialog
       v-model="importVisible"
       :host="selectedHost"
-      @done="onImportDone"
+      @done="handleSearch"
+    />
+
+    <OperationResultPanel
+      v-if="lastResult"
+      :synced-fields="lastResult.syncedFields"
+      :warnings="lastResult.warnings"
+      :command-results="lastResult.commandResults"
     />
   </div>
 </template>
@@ -220,116 +290,115 @@
 <script setup lang="ts">
 import {
   Box,
+  Delete,
+  EditPen,
+  MoreFilled,
   Plus,
   Refresh,
+  RefreshLeft,
   RefreshRight,
   Search,
   Upload,
+  VideoPause,
+  VideoPlay,
   View,
 } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
-import { computed, onMounted, ref } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { computed, onMounted, reactive, ref } from 'vue';
 
 import {
+  archiveService,
   createService,
+  deleteService,
   getServiceDetail,
   listHosts,
   listServices,
   refreshServiceStatus,
+  restartService,
+  restoreService,
+  startService,
+  stopService,
+  syncService,
+  updateService,
 } from '@/api/supervisor/supervisorApi';
 import type {
-  PagedServiceResponse,
+  OperationResponse,
   ServiceCreatePayload,
-  SupervisorState,
+  ServiceListRecord,
+  ServiceUpdatePayload,
   SupervisorHost,
   SupervisorServiceDetail,
+  SupervisorState,
 } from '@/api/supervisor/supervisor.types';
 import EmptyState from '@/components/EmptyState.vue';
+import ImportDialog from '@/features/supervisor/components/ImportDialog.vue';
 import ManageModeTag from '@/features/supervisor/components/ManageModeTag.vue';
+import OperationResultPanel from '@/features/supervisor/components/OperationResultPanel.vue';
 import ServiceDetailDrawer from '@/features/supervisor/components/ServiceDetailDrawer.vue';
 import ServiceFormDialog from '@/features/supervisor/components/ServiceFormDialog.vue';
 import StatusTag from '@/features/supervisor/components/StatusTag.vue';
-import {
-  createEmptyServiceDraft,
-} from '@/features/supervisor/utils/serviceDraft';
-import ImportDialog from '@/features/supervisor/components/ImportDialog.vue';
-
-const DEFAULT_PAGE_SIZE = 10;
-
-function createEmptyServicePage(): PagedServiceResponse {
-  return {
-    records: [],
-    page: 1,
-    pageSize: DEFAULT_PAGE_SIZE,
-    total: 0,
-    pages: 0,
-  };
-}
+import { createEditDraft, createEmptyServiceDraft } from '@/features/supervisor/utils/serviceDraft';
 
 const hosts = ref<SupervisorHost[]>([]);
-const servicePage = ref<PagedServiceResponse>(createEmptyServicePage());
+const serviceRecords = ref<ServiceListRecord[]>([]);
+const servicePage = ref({ page: 1, pageSize: 10, total: 0, pages: 0 });
 const selectedHost = ref('');
 const keyword = ref('');
 const statusFilter = ref('ALL');
+const archiveFilter = ref('false');
 const currentPage = ref(1);
-const pageSize = ref(DEFAULT_PAGE_SIZE);
+const pageSize = ref(10);
 const loadingHosts = ref(false);
 const loadingServices = ref(false);
-const refreshingStatus = ref(false);
 const loadingDetail = ref(false);
+const refreshingStatus = ref(false);
 const currentDetail = ref<SupervisorServiceDetail | null>(null);
 const detailVisible = ref(false);
 const formVisible = ref(false);
-const formDraft = ref<ServiceCreatePayload>(createEmptyServiceDraft(''));
+const formMode = ref<'create' | 'edit'>('create');
+const formDraft = ref<ServiceCreatePayload | ServiceUpdatePayload>(createEmptyServiceDraft(''));
+const editingProgramName = ref('');
 const submittingForm = ref(false);
 const importVisible = ref(false);
+const lastResult = ref<OperationResponse | null>(null);
 
-const enabledHosts = computed(() => hosts.value.filter((host) => host.enabled));
+const actionLoading = reactive<Record<string, string | null>>({});
 
-const selectedHostRecord = computed(() => {
-  return hosts.value.find((host) => host.ip === selectedHost.value) || null;
-});
-
-const isRemoteHost = computed(() => selectedHostRecord.value?.executorType === 'ansible');
-const serviceRecords = computed(() => servicePage.value.records);
-const hasActiveFilters = computed(() => {
-  return (
-    keyword.value.trim().length > 0 ||
-    statusFilter.value !== 'ALL' ||
-    currentPage.value !== 1 ||
-    pageSize.value !== DEFAULT_PAGE_SIZE
-  );
-});
-const showImportEmptyState = computed(() => isRemoteHost.value && !hasActiveFilters.value);
+const enabledHosts = computed(() => hosts.value.filter((h) => h.enabled));
 
 const metrics = computed(() => {
-  const running = serviceRecords.value.filter((service) => service.status === 'RUNNING').length;
+  const running = serviceRecords.value.filter((s) => s.status === 'RUNNING').length;
+  const archivedCount = archiveFilter.value === 'true'
+    ? serviceRecords.value.length
+    : 0;
 
   return {
     hosts: hosts.value.length,
-    enabledHosts: enabledHosts.value.length,
-    services: servicePage.value.total,
+    services: serviceRecords.value.length,
     running,
+    archived: archivedCount,
   };
 });
 
-onMounted(async () => {
-  await loadAll();
-});
+function showStartAction(status: SupervisorState): boolean {
+  return ['STOPPED', 'EXITED', 'FATAL', 'BACKOFF', 'UNKNOWN'].includes(status);
+}
 
-async function loadAll() {
+function showStopAction(status: SupervisorState): boolean {
+  return status === 'RUNNING';
+}
+
+onMounted(async () => {
   await loadHosts();
   if (selectedHost.value) {
     await loadServices();
   }
-}
+});
 
 async function loadHosts() {
   loadingHosts.value = true;
-
   try {
     hosts.value = await listHosts();
-
     if (!selectedHost.value) {
       selectedHost.value = enabledHosts.value[0]?.ip || hosts.value[0]?.ip || '';
     }
@@ -342,40 +411,40 @@ async function loadHosts() {
 
 async function loadServices() {
   if (!selectedHost.value) {
-    servicePage.value = createEmptyServicePage();
+    serviceRecords.value = [];
     return;
   }
 
   loadingServices.value = true;
+  lastResult.value = null;
 
   try {
-    const normalizedKeyword = keyword.value.trim();
-    const status = statusFilter.value === 'ALL' ? undefined : (statusFilter.value as SupervisorState);
-
-    servicePage.value = await listServices({
+    const result = await listServices({
       host: selectedHost.value,
-      keyword: normalizedKeyword || undefined,
-      status,
+      keyword: keyword.value || undefined,
+      status: statusFilter.value !== 'ALL' ? (statusFilter.value as SupervisorState) : undefined,
+      archived: archiveFilter.value !== 'all' ? archiveFilter.value === 'true' : undefined,
       page: currentPage.value,
       pageSize: pageSize.value,
     });
+    serviceRecords.value = result.records;
+    servicePage.value = {
+      page: result.page,
+      pageSize: result.pageSize,
+      total: result.total,
+      pages: result.pages,
+    };
   } catch (error) {
     handleError(error, '加载服务列表失败');
-    servicePage.value = createEmptyServicePage();
   } finally {
     loadingServices.value = false;
   }
 }
 
 function onHostChange() {
-  currentPage.value = 1;
-  importVisible.value = false;
   keyword.value = '';
   statusFilter.value = 'ALL';
-  void loadServices();
-}
-
-function handleStatusChange() {
+  archiveFilter.value = 'false';
   currentPage.value = 1;
   void loadServices();
 }
@@ -385,29 +454,46 @@ function handleSearch() {
   void loadServices();
 }
 
+function handleStatusChange() {
+  handleSearch();
+}
+
 function handleResetFilters() {
   keyword.value = '';
   statusFilter.value = 'ALL';
+  archiveFilter.value = 'false';
   currentPage.value = 1;
-  pageSize.value = DEFAULT_PAGE_SIZE;
   void loadServices();
 }
 
-function handlePageChange(page: number) {
+function onPageChange(page: number) {
   currentPage.value = page;
   void loadServices();
 }
 
-function handlePageSizeChange(size: number) {
+function onPageSizeChange(size: number) {
   pageSize.value = size;
   currentPage.value = 1;
   void loadServices();
 }
 
-async function openDetail(programName: string) {
-  if (!selectedHost.value) {
-    return;
+async function handleRefreshStatus() {
+  if (!selectedHost.value) return;
+
+  refreshingStatus.value = true;
+  try {
+    await refreshServiceStatus(selectedHost.value);
+    ElMessage.success('状态刷新成功');
+    await loadServices();
+  } catch (error) {
+    handleError(error, '刷新状态失败');
+  } finally {
+    refreshingStatus.value = false;
   }
+}
+
+async function openDetail(programName: string) {
+  if (!selectedHost.value) return;
 
   detailVisible.value = true;
   loadingDetail.value = true;
@@ -422,50 +508,156 @@ async function openDetail(programName: string) {
   }
 }
 
+async function refreshDetail() {
+  if (!selectedHost.value || !currentDetail.value) return;
+
+  try {
+    currentDetail.value = await getServiceDetail(selectedHost.value, currentDetail.value.programName);
+  } catch (error) {
+    handleError(error, '刷新详情失败');
+  }
+}
+
 function openCreateDialog() {
+  formMode.value = 'create';
+  editingProgramName.value = '';
   formDraft.value = createEmptyServiceDraft(selectedHost.value);
   formVisible.value = true;
 }
 
-function openImportDialog() {
-  importVisible.value = true;
+function openEditDialog(row: ServiceListRecord) {
+  formMode.value = 'edit';
+  editingProgramName.value = row.programName;
+  formDraft.value = createEditDraft(row);
+  formVisible.value = true;
 }
 
-async function handleRefreshStatus() {
-  if (!selectedHost.value) {
-    return;
-  }
-
-  refreshingStatus.value = true;
-
-  try {
-    const result = await refreshServiceStatus(selectedHost.value);
-    await loadServices();
-    ElMessage.success(`状态刷新完成：更新 ${result.updated} 条，未匹配 ${result.missing} 条`);
-  } catch (error) {
-    handleError(error, '刷新服务状态失败');
-  } finally {
-    refreshingStatus.value = false;
-  }
-}
-
-async function handleFormSubmit(payload: ServiceCreatePayload) {
+async function handleFormSubmit(payload: ServiceCreatePayload | ServiceUpdatePayload) {
   submittingForm.value = true;
+  lastResult.value = null;
 
   try {
-    await createService(payload);
-    ElMessage.success('服务创建成功');
+    if (formMode.value === 'create') {
+      const createPayload = payload as ServiceCreatePayload;
+      const result = await createService(createPayload);
+      lastResult.value = result;
+      ElMessage.success('服务创建成功');
+    } else {
+      const updatePayload = payload as ServiceUpdatePayload;
+      const result = await updateService(editingProgramName.value, selectedHost.value, updatePayload);
+      lastResult.value = result;
+      ElMessage.success('服务更新成功');
+    }
+
     formVisible.value = false;
     await loadServices();
   } catch (error) {
-    handleError(error, '创建服务失败');
+    handleError(error, formMode.value === 'create' ? '创建服务失败' : '更新服务失败');
   } finally {
     submittingForm.value = false;
   }
 }
 
-function onImportDone() {
-  void loadServices();
+async function handleAction(
+  action: 'start' | 'stop' | 'restart' | 'archive' | 'restore' | 'delete',
+  row: ServiceListRecord,
+) {
+  if (action === 'delete') {
+    try {
+      await ElMessageBox.confirm(
+        `确认删除服务 ${row.programName} 吗？`,
+        '删除确认',
+        { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
+      );
+    } catch {
+      return;
+    }
+  }
+
+  actionLoading[row.programName] = action;
+  lastResult.value = null;
+
+  try {
+    let result: OperationResponse;
+    const host = selectedHost.value;
+
+    switch (action) {
+      case 'start':
+        result = await startService(host, row.programName);
+        ElMessage.success('启动命令已执行');
+        break;
+      case 'stop':
+        result = await stopService(host, row.programName);
+        ElMessage.success('停止命令已执行');
+        break;
+      case 'restart':
+        result = await restartService(host, row.programName);
+        ElMessage.success('重启命令已执行');
+        break;
+      case 'archive':
+        result = await archiveService(host, row.programName);
+        ElMessage.success('归档成功');
+        break;
+      case 'restore':
+        result = await restoreService(host, row.programName);
+        ElMessage.success('还原成功');
+        break;
+      case 'delete':
+        result = await deleteService(host, row.programName);
+        ElMessage.success('删除成功');
+        if (currentDetail.value?.programName === row.programName) {
+          detailVisible.value = false;
+          currentDetail.value = null;
+        }
+        break;
+      default:
+        return;
+    }
+
+    lastResult.value = result;
+    await loadServices();
+
+    if (detailVisible.value && currentDetail.value?.programName === row.programName) {
+      await refreshDetail();
+    }
+  } catch (error) {
+    handleError(error, `${action} 执行失败`);
+  } finally {
+    delete actionLoading[row.programName];
+  }
+}
+
+function handleDropdownAction(cmd: string, row: ServiceListRecord) {
+  if (cmd === 'edit') {
+    openEditDialog(row);
+  } else if (cmd === 'archive' || cmd === 'delete') {
+    handleAction(cmd, row);
+  }
+}
+
+async function handleSyncRow(row: ServiceListRecord) {
+  actionLoading[row.programName] = 'sync';
+  lastResult.value = null;
+
+  try {
+    const result = await syncService(selectedHost.value, row.programName);
+    lastResult.value = result;
+    ElMessage.success('同步完成');
+    await loadServices();
+  } catch (error) {
+    handleError(error, '同步失败');
+  } finally {
+    delete actionLoading[row.programName];
+  }
+}
+
+async function onDetailSync(detail: SupervisorServiceDetail) {
+  await loadServices();
+  await refreshDetail();
+}
+
+function openImportDialog() {
+  importVisible.value = true;
 }
 
 function handleError(error: unknown, fallbackMessage: string) {
@@ -475,35 +667,38 @@ function handleError(error: unknown, fallbackMessage: string) {
 </script>
 
 <style scoped>
-.dashboard__metrics {
+.dashboard__kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px;
 }
 
-.dashboard__metric {
-  min-height: 118px;
-  padding: 18px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+.dashboard__kpi {
+  padding: 14px 16px;
+  border: 1px solid #dde1e6;
+  border-radius: 6px;
   background: #fcfcfd;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: 4px;
 }
 
-.dashboard__metric-label {
-  font-size: 13px;
+.dashboard__kpi-label {
+  font-size: 12px;
   color: #6b7280;
 }
 
-.dashboard__metric-value {
-  font-size: 30px;
+.dashboard__kpi-value {
+  font-size: 26px;
   font-weight: 700;
 }
 
-.dashboard__metric-value--success {
-  color: #117a4d;
+.dashboard__kpi-value--success {
+  color: #1f7a57;
+}
+
+.dashboard__kpi-value--muted {
+  color: #6b7280;
 }
 
 .dashboard__header-actions {
@@ -512,88 +707,70 @@ function handleError(error: unknown, fallbackMessage: string) {
   flex-wrap: wrap;
 }
 
-.dashboard__readonly-notice {
-  margin-top: 16px;
-}
-
-.dashboard__filters {
-  display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(240px, 1fr) minmax(160px, 200px) auto;
-  gap: 12px;
-  margin-top: 16px;
+.dashboard__filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
 }
 
 .dashboard__host-select {
-  width: 100%;
+  width: 220px;
+  flex-shrink: 0;
 }
 
 .dashboard__filter-actions {
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.dashboard__host-meta {
-  margin-top: 16px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.dashboard__host-meta-item {
-  padding: 14px 16px;
-  border-radius: 8px;
-  background: #f7f8fa;
-  border: 1px solid #e5e7eb;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.dashboard__host-meta-item span {
-  color: #6b7280;
-  font-size: 12px;
-}
-
-.dashboard__host-meta-item strong {
-  font-size: 15px;
+  gap: 8px;
 }
 
 .dashboard__table {
   width: 100%;
 }
 
-.dashboard__pagination {
-  margin-top: 16px;
-  display: flex;
-  justify-content: flex-end;
-}
-
 .dashboard__program-name {
   font-weight: 600;
+  font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+  font-size: 13px;
 }
 
 .dashboard__program-meta {
   color: #6b7280;
   font-size: 12px;
+  font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.dashboard__row-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.dashboard__pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
 }
 
 @media (max-width: 1280px) {
-  .dashboard__metrics {
+  .dashboard__kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 1024px) {
-  .dashboard__filters,
-  .dashboard__host-meta {
+@media (max-width: 768px) {
+  .dashboard__kpis {
     grid-template-columns: 1fr;
   }
-}
 
-@media (max-width: 640px) {
-  .dashboard__metrics {
-    grid-template-columns: 1fr;
+  .dashboard__filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dashboard__host-select {
+    width: 100%;
   }
 }
 </style>
