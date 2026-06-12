@@ -69,6 +69,7 @@ function mountDialog(props: {
 
 const createDraft = {
   host: '127.0.0.1',
+  programName: '',
   jobName: '',
   moduleName: '',
   javaPath: '/usr/local/jdk17/bin/java',
@@ -82,6 +83,7 @@ const createDraft = {
 };
 
 const editDraft = {
+  programName: 'member-demo',
   jobName: 'demo',
   moduleName: 'member',
   javaPath: '/usr/local/jdk17/bin/java',
@@ -152,6 +154,7 @@ describe('ServiceFormDialog', () => {
     expect(labels).toContain('运行环境');
     expect(labels).toContain('业务名称');
     expect(labels).toContain('模块名称');
+    expect(labels).toContain('程序名');
     expect(labels).toContain('Java 路径');
     expect(labels).toContain('端口');
     expect(labels).toContain('配置文件名');
@@ -197,7 +200,7 @@ describe('ServiceFormDialog', () => {
       modelValue: true,
       mode: 'create',
       submitting: false,
-      initialValue: { ...createDraft, jobName: 'test', moduleName: 'app', active: 'staging', fileName: 'app.ini' },
+      initialValue: { ...createDraft, programName: 'app-demo', jobName: 'test', moduleName: 'app', active: 'staging', fileName: 'app.ini' },
     });
 
     const submitBtn = wrapper.findAll('button').find((b) => b.text() === '创建服务');
@@ -207,6 +210,7 @@ describe('ServiceFormDialog', () => {
     expect(submitEvents).toBeTruthy();
     if (submitEvents) {
       const payload = submitEvents[0][0] as ServiceCreatePayload | ServiceUpdatePayload;
+      expect(payload.programName).toBe('app-demo');
       expect(payload.jobName).toBe('test');
       expect(payload.moduleName).toBe('app');
       expect(payload.active).toBe('staging');

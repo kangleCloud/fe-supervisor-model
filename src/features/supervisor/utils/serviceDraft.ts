@@ -8,6 +8,7 @@ import type {
 export function createEmptyServiceDraft(host: string): ServiceCreatePayload {
   return {
     host,
+    programName: '',
     jobName: '',
     moduleName: '',
     javaPath: '/usr/local/jdk17/bin/java',
@@ -23,6 +24,7 @@ export function createEmptyServiceDraft(host: string): ServiceCreatePayload {
 
 export function createEditDraft(source: SupervisorServiceDetail | ServiceListRecord): ServiceUpdatePayload {
   return {
+    programName: source.programName,
     jobName: source.jobName || '',
     moduleName: source.moduleName || '',
     javaPath: source.javaPath || '',

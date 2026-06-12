@@ -567,8 +567,8 @@ describe('SupervisorDashboardPage', () => {
     mockStartService.mockResolvedValue({ commandResult: {} });
     mockStopService.mockResolvedValue({ commandResult: {} });
     mockSyncService.mockResolvedValue({ syncedFields: [], warnings: [], commandResults: {} });
-    mockUpdateService.mockResolvedValue({ programName: 'demo_member', commandResults: {} });
-    mockCreateService.mockResolvedValue({ commandResults: {} });
+    mockUpdateService.mockResolvedValue({ programName: 'demo_member_v2', commandResults: {} });
+    mockCreateService.mockResolvedValue({ programName: 'demo_member_manual', commandResults: {} });
     mockMessageBoxConfirm.mockResolvedValue(undefined);
     mockRefreshOverview.mockResolvedValue({ success: true });
     overviewState.overview = computed(() => ({

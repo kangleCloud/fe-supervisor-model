@@ -164,6 +164,7 @@ describe('supervisorApi URLs', () => {
     mockRequest.mockResolvedValue({});
     const payload = {
       host: 'host-1',
+      programName: 'app-demo',
       jobName: 'demo',
       moduleName: 'app',
       javaPath: '/usr/local/jdk17/bin/java',
@@ -180,9 +181,23 @@ describe('supervisorApi URLs', () => {
     const call = mockRequest.mock.calls[0][0];
     expect(call.url).toBe('/admin/api/supervisor/services');
     expect(call.method).toBe('post');
-    expect(call.data).toEqual(payload);
+    expect(call.data).toEqual({
+      host: 'host-1',
+      contentProgramName: 'app-demo',
+      jobName: 'demo',
+      moduleName: 'app',
+      javaPath: '/usr/local/jdk17/bin/java',
+      active: 'prod',
+      port: 9001,
+      jarName: 'app.jar',
+      fileName: '',
+      xms: '128m',
+      xmx: '128m',
+      user: 'root',
+    });
     expect(call.data).not.toHaveProperty('autoStart');
     expect(call.data).not.toHaveProperty('configName');
+    expect(call.data).not.toHaveProperty('programName');
   });
 
   it('updateService uses PUT /services/:name with host param and body', async () => {
@@ -196,6 +211,7 @@ describe('supervisorApi URLs', () => {
       commandResults: {},
     });
     const payload = {
+      programName: 'app-demo',
       jobName: 'demo',
       moduleName: 'app',
       javaPath: '/usr/local/jdk17/bin/java',
@@ -209,7 +225,15 @@ describe('supervisorApi URLs', () => {
         url: '/admin/api/supervisor/services/my-app',
         method: 'put',
         params: { host: 'host-1' },
-        data: payload,
+        data: {
+          contentProgramName: 'app-demo',
+          jobName: 'demo',
+          moduleName: 'app',
+          javaPath: '/usr/local/jdk17/bin/java',
+          active: 'prod',
+          port: 9001,
+          fileName: '',
+        },
       }),
     );
   });
@@ -224,10 +248,11 @@ describe('supervisorApi URLs', () => {
       manageMode: 'TEMPLATE_MANAGED',
       commandResults: {},
     });
-    await updateService('demo/member:v1', 'host-1', { jobName: 'd', moduleName: 'm', javaPath: '/j', active: 'p', port: 1 });
+    await updateService('demo/member:v1', 'host-1', { programName: 'manual-v1', jobName: 'd', moduleName: 'm', javaPath: '/j', active: 'p', port: 1 });
     expect(mockRequest).toHaveBeenCalledWith(
       expect.objectContaining({
         url: '/admin/api/supervisor/services/demo%2Fmember%3Av1',
+        data: expect.objectContaining({ contentProgramName: 'manual-v1' }),
       }),
     );
   });

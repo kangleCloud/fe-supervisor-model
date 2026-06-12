@@ -30,6 +30,14 @@
               <el-input v-model="draft.moduleName" placeholder="member" />
             </el-form-item>
           </el-col>
+          <el-col :xs="24" :md="24">
+            <el-form-item label="程序名" prop="programName">
+              <el-input
+                v-model="draft.programName"
+                placeholder="手动输入实际 Supervisor programName"
+              />
+            </el-form-item>
+          </el-col>
 
           <el-col :xs="24" :md="16">
             <el-form-item label="Java 路径" prop="javaPath">
@@ -110,6 +118,7 @@ const formRef = ref<FormInstance>();
 const rules: FormRules<Record<string, any>> = {
   jobName: [{ required: true, message: '请输入业务名称', trigger: 'blur' }],
   moduleName: [{ required: true, message: '请输入模块名称', trigger: 'blur' }],
+  programName: [{ required: true, message: '请输入程序名', trigger: 'blur' }],
   javaPath: [{ required: true, message: '请输入 Java 路径', trigger: 'blur' }],
   active: [{ required: true, message: '请输入运行环境', trigger: 'blur' }],
   port: [{ required: true, message: '请输入端口', trigger: 'change' }],

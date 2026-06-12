@@ -102,6 +102,7 @@ export interface SupervisorServiceDetail {
 
 export interface ServiceCreatePayload {
   host: string;
+  programName: string;
   jobName: string;
   moduleName: string;
   javaPath: string;
@@ -115,6 +116,7 @@ export interface ServiceCreatePayload {
 }
 
 export interface ServiceUpdatePayload {
+  programName: string;
   jobName: string;
   moduleName: string;
   javaPath: string;

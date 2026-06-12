@@ -536,21 +536,29 @@ export async function getServiceDetail(host: string, programName: string) {
 }
 
 export async function createService(payload: ServiceCreatePayload) {
+  const { programName, ...rest } = payload;
   const response = await request<RawServiceCreateResponse>({
     method: 'post',
     url: `${SUPERVISOR}/services`,
-    data: payload,
+    data: {
+      ...rest,
+      contentProgramName: programName,
+    },
   });
 
   return normalizeServiceCreateResponse(response) satisfies ServiceCreateResponse;
 }
 
 export async function updateService(programName: string, host: string, payload: ServiceUpdatePayload) {
+  const { programName: nextProgramName, ...rest } = payload;
   const response = await request<RawServiceUpdateResponse>({
     method: 'put',
     url: `${SUPERVISOR}/services/${encodeURIComponent(programName)}`,
     params: { host },
-    data: payload,
+    data: {
+      ...rest,
+      contentProgramName: nextProgramName,
+    },
   });
 
   return normalizeServiceUpdateResponse(response) satisfies ServiceUpdateResponse;
