@@ -19,13 +19,16 @@
       </div>
     </section>
 
-    <section v-if="commandResults?.steps?.length" class="op-result__section">
+    <section v-if="normalizedSteps.length" class="op-result__section">
       <div class="op-result__section-title">命令执行结果</div>
-      <div v-for="(step, index) in commandResults.steps" :key="index" class="op-result__step">
+      <div v-for="step in normalizedSteps" :key="step.key" class="op-result__step">
         <div class="op-result__step-header">
-          <span class="op-result__step-label">Step {{ index + 1 }}</span>
-          <el-tag :type="step.exitCode === 0 ? 'success' : 'danger'" size="small">
-            exit {{ step.exitCode }}
+          <div>
+            <span class="op-result__step-label">{{ step.label }}</span>
+            <span v-if="step.description" class="op-result__step-description">{{ step.description }}</span>
+          </div>
+          <el-tag :type="step.exitCode === 0 ? 'success' : step.exitCode == null ? 'info' : 'danger'" size="small">
+            {{ step.exitCode == null ? 'info' : `exit ${step.exitCode}` }}
           </el-tag>
         </div>
         <code v-if="step.stdout" class="op-result__code">{{ step.stdout }}</code>
@@ -39,22 +42,95 @@
 import { Close } from '@element-plus/icons-vue';
 import { computed } from 'vue';
 
-import type { CommandResults } from '@/api/supervisor/supervisor.types';
+import type { OperationCommandPayload } from '@/api/supervisor/supervisor.types';
 
 const props = defineProps<{
   syncedFields?: string[];
   warnings?: string[];
-  commandResults?: CommandResults;
+  commandResults?: OperationCommandPayload;
 }>();
 
 const emit = defineEmits<{
   close: [];
 }>();
 
+interface NormalizedStep {
+  key: string;
+  label: string;
+  description: string;
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+}
+
+function formatPrimitive(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return '';
+}
+
+function normalizeCommandPayload(payload: OperationCommandPayload | undefined): NormalizedStep[] {
+  if (!payload) {
+    return [];
+  }
+
+  if ('steps' in payload && Array.isArray(payload.steps)) {
+    return payload.steps.map((step, index) => ({
+      key: `step-${index}`,
+      label: `Step ${index + 1}`,
+      description: step.backupPath || step.configPath || step.path || '',
+      exitCode: step.exitCode ?? null,
+      stdout: step.stdout || '',
+      stderr: step.stderr || '',
+    }));
+  }
+
+  if ('exitCode' in payload || 'stdout' in payload || 'stderr' in payload) {
+    return [{
+      key: 'single',
+      label: '命令结果',
+      description: formatPrimitive(payload.backupPath) || formatPrimitive(payload.configPath) || formatPrimitive(payload.path),
+      exitCode: typeof payload.exitCode === 'number' ? payload.exitCode : null,
+      stdout: formatPrimitive(payload.stdout),
+      stderr: formatPrimitive(payload.stderr),
+    }];
+  }
+
+  return Object.entries(payload).map(([key, value]) => {
+    const typedValue = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+    const lines: string[] = [];
+
+    for (const [field, fieldValue] of Object.entries(typedValue)) {
+      if (field === 'stdout' || field === 'stderr' || field === 'exitCode') {
+        continue;
+      }
+      if (fieldValue == null || fieldValue === '') {
+        continue;
+      }
+      if (typeof fieldValue === 'object') {
+        lines.push(`${field}: ${JSON.stringify(fieldValue)}`);
+        continue;
+      }
+      lines.push(`${field}: ${String(fieldValue)}`);
+    }
+
+    return {
+      key,
+      label: key,
+      description: '',
+      exitCode: typeof typedValue.exitCode === 'number' ? typedValue.exitCode : null,
+      stdout: typeof typedValue.stdout === 'string' ? typedValue.stdout : lines.join('\n'),
+      stderr: typeof typedValue.stderr === 'string' ? typedValue.stderr : '',
+    };
+  });
+}
+
+const normalizedSteps = computed(() => normalizeCommandPayload(props.commandResults));
+
 const hasContent = computed(() =>
-  (props.syncedFields && props.syncedFields.length > 0) ||
-  (props.warnings && props.warnings.length > 0) ||
-  (props.commandResults?.steps && props.commandResults.steps.length > 0),
+  (props.syncedFields && props.syncedFields.length > 0)
+  || (props.warnings && props.warnings.length > 0)
+  || normalizedSteps.value.length > 0,
 );
 </script>
 
@@ -116,22 +192,33 @@ const hasContent = computed(() =>
 
 .op-result__step-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 8px;
   margin-bottom: 6px;
 }
 
 .op-result__step-label {
+  display: block;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-tertiary);
+  text-transform: capitalize;
+}
+
+.op-result__step-description {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
 }
 
 .op-result__code {
   display: block;
   padding: 8px;
   margin: 0;
-  background: #162028;
+  background: var(--shell-bg);
   color: #e5edf5;
   border-radius: 4px;
   font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;

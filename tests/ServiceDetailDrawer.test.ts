@@ -1,8 +1,23 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import ServiceDetailDrawer from '@/features/supervisor/components/ServiceDetailDrawer.vue';
 import type { SupervisorServiceDetail } from '@/api/supervisor/supervisor.types';
+
+const { mockSyncService } = vi.hoisted(() => ({
+  mockSyncService: vi.fn(),
+}));
+
+vi.mock('@/api/supervisor/supervisorApi', () => ({
+  syncService: mockSyncService,
+}));
+
+vi.mock('element-plus', () => ({
+  ElMessage: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
 
 const detail: SupervisorServiceDetail = {
   id: 1,
@@ -11,11 +26,9 @@ const detail: SupervisorServiceDetail = {
   jobName: 'demo',
   moduleName: 'member',
   programName: 'demo_member',
-  configName: 'demo_member.ini',
   configPath: 'demo_member.ini',
   fileName: 'demo_member.ini',
-  contentProgramName: 'demo_member',
-  manageMode: 'TEMPLATE_MANAGED' as const,
+  manageMode: 'TEMPLATE_MANAGED',
   metadataComplete: true,
   parseWarnings: [],
   javaPath: '/usr/local/jdk17/bin/java',
@@ -25,11 +38,7 @@ const detail: SupervisorServiceDetail = {
   xms: '128m',
   xmx: '128m',
   user: 'root',
-  status: {
-    programName: 'demo_member',
-    state: 'RUNNING' as const,
-    raw: 'demo_member RUNNING pid 12345, uptime 0:10:00',
-  },
+  status: 'RUNNING',
   pid: '12345',
   uptime: '0:10:00',
   command: '/usr/local/jdk17/bin/java -jar member.jar',
@@ -39,7 +48,7 @@ const detail: SupervisorServiceDetail = {
   configContent: '[program:demo_member]\ncommand=java -jar member.jar',
   backupConfigContent: null,
   lastSyncAt: '2026-06-10 12:00:00',
-  syncStatus: 'OK',
+  syncStatus: 'SUCCESS',
   syncError: null,
   isArchived: false,
   archivedAt: null,
@@ -67,7 +76,7 @@ function mountDrawer(props: { modelValue: boolean; loading: boolean; detail: typ
           props: ['title', 'description', 'type', 'closable', 'showIcon'],
           template: '<div class="el-alert-stub"><strong>{{ title }}</strong><p>{{ description }}</p><slot /></div>',
         },
-        ElButton: { template: '<button><slot /></button>' },
+        ElButton: { emits: ['click'], template: '<button @click="$emit(\'click\')"><slot /></button>' },
         ElIcon: { template: '<i />' },
         ManageModeTag: {
           props: ['mode'],
@@ -120,17 +129,18 @@ describe('ServiceDetailDrawer', () => {
     expect(wrapper.text()).not.toContain('备份配置内容');
   });
 
-  it('shows syncError when present', () => {
+  it('shows syncStatus and syncError when present', () => {
     const wrapper = mountDrawer({
       modelValue: true,
       loading: false,
       detail: {
         ...detail,
-        syncStatus: 'ERROR',
+        syncStatus: 'FAILED',
         syncError: 'Connection refused',
       },
     });
 
+    expect(wrapper.text()).toContain('FAILED');
     expect(wrapper.text()).toContain('Connection refused');
   });
 
@@ -178,5 +188,35 @@ describe('ServiceDetailDrawer', () => {
 
     expect(wrapper.text()).toContain('2026-06-09 10:00:00');
     expect(wrapper.text()).toContain('2026-06-11 08:00:00');
+  });
+
+  it('emits sync and calls syncService for non-archived detail', async () => {
+    mockSyncService.mockResolvedValue({
+      host: '127.0.0.1',
+      programName: 'demo_member',
+      status: 'RUNNING',
+      pid: '12345',
+      uptime: '0:10:00',
+      syncedFields: ['configContent'],
+      warnings: [],
+      lastSyncAt: '2026-06-10 12:05:00',
+      syncStatus: 'SUCCESS',
+      syncError: null,
+      commandResults: {},
+    });
+
+    const wrapper = mountDrawer({
+      modelValue: true,
+      loading: false,
+      detail,
+    });
+
+    const syncButton = wrapper.findAll('button').find((button) => button.text() === '同步现场');
+    expect(syncButton).toBeDefined();
+
+    await syncButton!.trigger('click');
+
+    expect(mockSyncService).toHaveBeenCalledWith('127.0.0.1', 'demo_member');
+    expect(wrapper.emitted('sync')).toBeTruthy();
   });
 });

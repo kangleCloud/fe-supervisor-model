@@ -6,15 +6,15 @@
         <div class="dashboard__kpi-value">{{ metrics.hosts }}</div>
       </div>
       <div class="dashboard__kpi">
-        <div class="dashboard__kpi-label">当前页结果</div>
+        <div class="dashboard__kpi-label">当前筛选总数</div>
         <div class="dashboard__kpi-value">{{ metrics.services }}</div>
       </div>
       <div class="dashboard__kpi">
-        <div class="dashboard__kpi-label">运行中</div>
+        <div class="dashboard__kpi-label">当前页 RUNNING</div>
         <div class="dashboard__kpi-value dashboard__kpi-value--success">{{ metrics.running }}</div>
       </div>
       <div class="dashboard__kpi">
-        <div class="dashboard__kpi-label">已归档</div>
+        <div class="dashboard__kpi-label">当前页已归档</div>
         <div class="dashboard__kpi-value dashboard__kpi-value--muted">{{ metrics.archived }}</div>
       </div>
     </section>
@@ -23,50 +23,62 @@
       <div class="page__section-header">
         <div>
           <h2 class="page__section-title">主机与筛选</h2>
-          <p class="page__section-subtitle">选择主机、筛选条件查看纳管服务。</p>
+          <p class="page__section-subtitle">保持轻量筛选，将操作注意力聚焦到服务列表与状态差异。</p>
         </div>
       </div>
 
-      <div class="dashboard__filter-bar">
-        <el-select
-          v-model="selectedHost"
-          class="dashboard__host-select"
-          placeholder="请选择主机"
-          @change="onHostChange"
-        >
-          <el-option
-            v-for="h in enabledHosts"
-            :key="h.ip"
-            :label="`${h.name} (${h.ip})`"
-            :value="h.ip"
+      <div class="dashboard__filter-grid">
+        <div class="dashboard__filter-field dashboard__filter-field--host">
+          <span class="dashboard__field-label">目标主机</span>
+          <el-select
+            v-model="selectedHost"
+            class="dashboard__host-select"
+            placeholder="请选择主机"
+            @change="onHostChange"
+          >
+            <el-option
+              v-for="h in enabledHosts"
+              :key="h.ip"
+              :label="`${h.name} (${h.ip})`"
+              :value="h.ip"
+            />
+          </el-select>
+        </div>
+
+        <div class="dashboard__filter-field dashboard__filter-field--keyword">
+          <span class="dashboard__field-label">关键字</span>
+          <el-input
+            v-model="keyword"
+            :prefix-icon="Search"
+            clearable
+            placeholder="搜索 programName、configPath、jobName、moduleName、port"
+            @keyup.enter="handleSearch"
           />
-        </el-select>
+        </div>
 
-        <el-input
-          v-model="keyword"
-          :prefix-icon="Search"
-          clearable
-          placeholder="搜索 programName、configName、jobName、moduleName、port"
-          @keyup.enter="handleSearch"
-        />
+        <div class="dashboard__filter-field">
+          <span class="dashboard__field-label">状态</span>
+          <el-select v-model="statusFilter" placeholder="状态" @change="handleStatusChange">
+            <el-option label="全部状态" value="ALL" />
+            <el-option label="RUNNING" value="RUNNING" />
+            <el-option label="STOPPED" value="STOPPED" />
+            <el-option label="STARTING" value="STARTING" />
+            <el-option label="STOPPING" value="STOPPING" />
+            <el-option label="BACKOFF" value="BACKOFF" />
+            <el-option label="FATAL" value="FATAL" />
+            <el-option label="EXITED" value="EXITED" />
+            <el-option label="UNKNOWN" value="UNKNOWN" />
+          </el-select>
+        </div>
 
-        <el-select v-model="statusFilter" placeholder="状态" @change="handleStatusChange">
-          <el-option label="全部状态" value="ALL" />
-          <el-option label="RUNNING" value="RUNNING" />
-          <el-option label="STOPPED" value="STOPPED" />
-          <el-option label="STARTING" value="STARTING" />
-          <el-option label="STOPPING" value="STOPPING" />
-          <el-option label="BACKOFF" value="BACKOFF" />
-          <el-option label="FATAL" value="FATAL" />
-          <el-option label="EXITED" value="EXITED" />
-          <el-option label="UNKNOWN" value="UNKNOWN" />
-        </el-select>
-
-        <el-radio-group v-model="archiveFilter" @change="handleSearch">
-          <el-radio-button value="false">活跃</el-radio-button>
-          <el-radio-button value="true">已归档</el-radio-button>
-          <el-radio-button value="all">全部</el-radio-button>
-        </el-radio-group>
+        <div class="dashboard__filter-field dashboard__filter-field--archive">
+          <span class="dashboard__field-label">归档筛选</span>
+          <el-radio-group v-model="archiveFilter" @change="handleSearch">
+            <el-radio-button value="false">活跃</el-radio-button>
+            <el-radio-button value="true">已归档</el-radio-button>
+            <el-radio-button value="all">全部</el-radio-button>
+          </el-radio-group>
+        </div>
 
         <div class="dashboard__filter-actions">
           <el-button :icon="Search" type="primary" @click="handleSearch">查询</el-button>
@@ -75,18 +87,22 @@
       </div>
     </section>
 
+    <ServerHealthStrip
+      :host="selectedHostConfig"
+      :snapshot="serverHealth"
+      @refresh="handleRefreshHealth"
+    />
+
     <section class="page__section">
       <div class="page__section-header">
         <div>
-          <h2 class="page__section-title">服务操作</h2>
+          <h2 class="page__section-title">服务列表</h2>
+          <p class="page__section-subtitle">
+            刷新列表仅重新获取分页数据；刷新状态会先触发后端状态同步，再回拉当前列表。
+          </p>
         </div>
         <div class="dashboard__header-actions">
-          <el-button :icon="Plus" type="primary" :disabled="!selectedHost" @click="openCreateDialog">
-            新增服务
-          </el-button>
-          <el-button :icon="Upload" :disabled="!selectedHost" plain @click="openImportDialog">
-            初始化导入
-          </el-button>
+          <el-button :icon="Refresh" :disabled="!selectedHost" plain @click="loadServices">刷新列表</el-button>
           <el-button
             :icon="RefreshRight"
             :disabled="!selectedHost"
@@ -96,17 +112,12 @@
           >
             刷新状态
           </el-button>
-        </div>
-      </div>
-    </section>
-
-    <section class="page__section">
-      <div class="page__section-header">
-        <div>
-          <h2 class="page__section-title">服务列表</h2>
-          <p class="page__section-subtitle">
-            列表字段与后端真实响应保持一致。每行操作根据运行状态控制可用动作。
-          </p>
+          <el-button :icon="Plus" type="primary" :disabled="!selectedHost" @click="openCreateDialog">
+            新增服务
+          </el-button>
+          <el-button :icon="Upload" :disabled="!selectedHost" plain @click="openImportDialog">
+            初始化导入
+          </el-button>
         </div>
       </div>
 
@@ -127,15 +138,15 @@
           highlight-current-row
           :row-class-name="getRowClass"
         >
-          <el-table-column label="程序名" min-width="200">
+          <el-table-column label="程序名" min-width="220">
             <template #default="{ row }">
               <div class="dashboard__program">
                 <div class="dashboard__program-name">{{ row.programName }}</div>
-                <div class="dashboard__program-meta">{{ row.configPath || row.configName }}</div>
+                <div class="dashboard__program-meta">{{ row.configPath }}</div>
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="纳管模式" width="110">
+          <el-table-column label="纳管模式" width="120">
             <template #default="{ row }">
               <ManageModeTag :mode="row.manageMode" />
             </template>
@@ -145,19 +156,19 @@
               <StatusTag :state="row.status" />
             </template>
           </el-table-column>
-          <el-table-column prop="pid" label="PID" width="80" />
-          <el-table-column prop="uptime" label="Uptime" width="100" />
-          <el-table-column prop="port" label="端口" width="70" />
-          <el-table-column prop="active" label="环境" width="80" />
-          <el-table-column prop="jarName" label="Jar" min-width="150" />
-          <el-table-column label="归档" width="80">
+          <el-table-column prop="pid" label="PID" width="90" />
+          <el-table-column prop="uptime" label="Uptime" width="110" />
+          <el-table-column prop="port" label="端口" width="80" />
+          <el-table-column prop="active" label="环境" width="90" />
+          <el-table-column prop="jarName" label="Jar" min-width="160" />
+          <el-table-column label="归档" width="88">
             <template #default="{ row }">
               <el-tag v-if="row.isArchived" type="danger" size="small" effect="plain">是</el-tag>
               <span v-else>-</span>
             </template>
           </el-table-column>
           <el-table-column prop="updateTime" label="更新时间" width="170" />
-          <el-table-column label="操作" width="200" fixed="right">
+          <el-table-column label="操作" width="220" fixed="right">
             <template #default="{ row }">
               <div v-if="row.isArchived" class="dashboard__row-actions">
                 <el-tooltip content="详情">
@@ -281,7 +292,7 @@
     <ImportDialog
       v-model="importVisible"
       :host="selectedHost"
-      @done="handleSearch"
+      @done="handleImportDone"
     />
 
     <OperationResultPanel
@@ -329,7 +340,8 @@ import {
   updateService,
 } from '@/api/supervisor/supervisorApi';
 import type {
-  OperationResponse,
+  ArchivedFilter,
+  OperationCommandPayload,
   ServiceCreatePayload,
   ServiceListRecord,
   ServiceUpdatePayload,
@@ -341,18 +353,26 @@ import EmptyState from '@/components/EmptyState.vue';
 import ImportDialog from '@/features/supervisor/components/ImportDialog.vue';
 import ManageModeTag from '@/features/supervisor/components/ManageModeTag.vue';
 import OperationResultPanel from '@/features/supervisor/components/OperationResultPanel.vue';
+import ServerHealthStrip from '@/features/supervisor/components/ServerHealthStrip.vue';
 import ServiceDetailDrawer from '@/features/supervisor/components/ServiceDetailDrawer.vue';
 import ServiceFormDialog from '@/features/supervisor/components/ServiceFormDialog.vue';
 import StatusTag from '@/features/supervisor/components/StatusTag.vue';
+import { useMockServerHealth } from '@/features/supervisor/composables/useMockServerHealth';
 import { createEditDraft, createEmptyServiceDraft } from '@/features/supervisor/utils/serviceDraft';
+
+interface ResultPanelState {
+  syncedFields?: string[];
+  warnings?: string[];
+  commandResults?: OperationCommandPayload;
+}
 
 const hosts = ref<SupervisorHost[]>([]);
 const serviceRecords = ref<ServiceListRecord[]>([]);
 const servicePage = ref({ page: 1, pageSize: 10, total: 0, pages: 0 });
 const selectedHost = ref('');
 const keyword = ref('');
-const statusFilter = ref('ALL');
-const archiveFilter = ref('false');
+const statusFilter = ref<'ALL' | SupervisorState>('ALL');
+const archiveFilter = ref<ArchivedFilter>('false');
 const currentPage = ref(1);
 const pageSize = ref(10);
 const loadingHosts = ref(false);
@@ -367,25 +387,20 @@ const formDraft = ref<ServiceCreatePayload | ServiceUpdatePayload>(createEmptySe
 const editingProgramName = ref('');
 const submittingForm = ref(false);
 const importVisible = ref(false);
-const lastResult = ref<OperationResponse | null>(null);
+const lastResult = ref<ResultPanelState | null>(null);
 
 const actionLoading = reactive<Record<string, string | null>>({});
 
 const enabledHosts = computed(() => hosts.value.filter((h) => h.enabled));
+const selectedHostConfig = computed(() => hosts.value.find((h) => h.ip === selectedHost.value) || null);
+const { snapshot: serverHealth, refresh: refreshServerHealth } = useMockServerHealth(selectedHost);
 
-const metrics = computed(() => {
-  const running = serviceRecords.value.filter((s) => s.status === 'RUNNING').length;
-  const archivedCount = archiveFilter.value === 'true'
-    ? serviceRecords.value.length
-    : 0;
-
-  return {
-    hosts: hosts.value.length,
-    services: serviceRecords.value.length,
-    running,
-    archived: archivedCount,
-  };
-});
+const metrics = computed(() => ({
+  hosts: hosts.value.length,
+  services: servicePage.value.total,
+  running: serviceRecords.value.filter((s) => s.status === 'RUNNING').length,
+  archived: serviceRecords.value.filter((s) => s.isArchived).length,
+}));
 
 function showStartAction(status: SupervisorState): boolean {
   return ['STOPPED', 'EXITED', 'FATAL', 'BACKOFF', 'UNKNOWN'].includes(status);
@@ -399,6 +414,51 @@ function getRowClass({ row }: { row: ServiceListRecord }): string {
   if (row.isArchived) return 'dashboard__row--archived';
   if (row.status === 'FATAL') return 'dashboard__row--fatal';
   return '';
+}
+
+function mergeCommandResults(...groups: Array<OperationCommandPayload | undefined>) {
+  return groups.reduce<Record<string, unknown>>((accumulator, group, index) => {
+    if (!group) {
+      return accumulator;
+    }
+    if ('steps' in group || 'exitCode' in group || 'stdout' in group || 'stderr' in group) {
+      return {
+        ...accumulator,
+        [`group${index + 1}`]: group,
+      };
+    }
+    return { ...accumulator, ...group };
+  }, {});
+}
+
+function setResultPanel(result: ResultPanelState | null) {
+  lastResult.value = result && (
+    (result.syncedFields && result.syncedFields.length)
+    || (result.warnings && result.warnings.length)
+    || result.commandResults
+  )
+    ? result
+    : null;
+}
+
+function hydrateDetail(detail: SupervisorServiceDetail): SupervisorServiceDetail {
+  const matchingRow = serviceRecords.value.find((item) => item.programName === detail.programName);
+
+  if (!matchingRow) {
+    return {
+      ...detail,
+      manageMode: 'TEMPLATE_MANAGED',
+      metadataComplete: true,
+      parseWarnings: [],
+    };
+  }
+
+  return {
+    ...detail,
+    manageMode: matchingRow.manageMode,
+    metadataComplete: matchingRow.metadataComplete,
+    parseWarnings: detail.parseWarnings?.length ? detail.parseWarnings : matchingRow.parseWarnings,
+  };
 }
 
 onMounted(async () => {
@@ -425,18 +485,18 @@ async function loadHosts() {
 async function loadServices() {
   if (!selectedHost.value) {
     serviceRecords.value = [];
+    servicePage.value = { page: 1, pageSize: pageSize.value, total: 0, pages: 0 };
     return;
   }
 
   loadingServices.value = true;
-  lastResult.value = null;
 
   try {
     const result = await listServices({
       host: selectedHost.value,
       keyword: keyword.value || undefined,
-      status: statusFilter.value !== 'ALL' ? (statusFilter.value as SupervisorState) : undefined,
-      archived: archiveFilter.value !== 'all' ? archiveFilter.value === 'true' : undefined,
+      status: statusFilter.value !== 'ALL' ? statusFilter.value : undefined,
+      archived: archiveFilter.value,
       page: currentPage.value,
       pageSize: pageSize.value,
     });
@@ -459,6 +519,8 @@ function onHostChange() {
   statusFilter.value = 'ALL';
   archiveFilter.value = 'false';
   currentPage.value = 1;
+  currentDetail.value = null;
+  detailVisible.value = false;
   void loadServices();
 }
 
@@ -490,6 +552,11 @@ function onPageSizeChange(size: number) {
   void loadServices();
 }
 
+function handleRefreshHealth() {
+  refreshServerHealth();
+  ElMessage.success('服务器概况已刷新');
+}
+
 async function handleRefreshStatus() {
   if (!selectedHost.value) return;
 
@@ -513,7 +580,7 @@ async function openDetail(programName: string) {
   currentDetail.value = null;
 
   try {
-    currentDetail.value = await getServiceDetail(selectedHost.value, programName);
+    currentDetail.value = hydrateDetail(await getServiceDetail(selectedHost.value, programName));
   } catch (error) {
     handleError(error, '加载服务详情失败');
   } finally {
@@ -521,11 +588,11 @@ async function openDetail(programName: string) {
   }
 }
 
-async function refreshDetail() {
-  if (!selectedHost.value || !currentDetail.value) return;
+async function refreshDetail(programName = currentDetail.value?.programName) {
+  if (!selectedHost.value || !programName) return;
 
   try {
-    currentDetail.value = await getServiceDetail(selectedHost.value, currentDetail.value.programName);
+    currentDetail.value = hydrateDetail(await getServiceDetail(selectedHost.value, programName));
   } catch (error) {
     handleError(error, '刷新详情失败');
   }
@@ -547,19 +614,20 @@ function openEditDialog(row: ServiceListRecord) {
 
 async function handleFormSubmit(payload: ServiceCreatePayload | ServiceUpdatePayload) {
   submittingForm.value = true;
-  lastResult.value = null;
 
   try {
     if (formMode.value === 'create') {
-      const createPayload = payload as ServiceCreatePayload;
-      const result = await createService(createPayload);
-      lastResult.value = result;
+      const result = await createService(payload as ServiceCreatePayload);
+      setResultPanel({ commandResults: result.commandResults });
       ElMessage.success('服务创建成功');
     } else {
-      const updatePayload = payload as ServiceUpdatePayload;
-      const result = await updateService(editingProgramName.value, selectedHost.value, updatePayload);
-      lastResult.value = result;
+      const result = await updateService(editingProgramName.value, selectedHost.value, payload as ServiceUpdatePayload);
+      setResultPanel({ commandResults: result.commandResults });
       ElMessage.success('服务更新成功');
+      editingProgramName.value = result.programName;
+      if (detailVisible.value && currentDetail.value?.programName) {
+        await refreshDetail(result.programName);
+      }
     }
 
     formVisible.value = false;
@@ -609,49 +677,58 @@ async function handleAction(
   }
 
   actionLoading[row.programName] = action;
-  lastResult.value = null;
 
   try {
-    let result: OperationResponse;
     const host = selectedHost.value;
 
     switch (action) {
-      case 'start':
-        result = await startService(host, row.programName);
+      case 'start': {
+        const result = await startService(host, row.programName);
+        setResultPanel({ commandResults: result.commandResult });
         ElMessage.success('启动命令已执行');
         break;
-      case 'stop':
-        result = await stopService(host, row.programName);
+      }
+      case 'stop': {
+        const result = await stopService(host, row.programName);
+        setResultPanel({ commandResults: result.commandResult });
         ElMessage.success('停止命令已执行');
         break;
-      case 'restart':
-        result = await restartService(host, row.programName);
+      }
+      case 'restart': {
+        const result = await restartService(host, row.programName);
+        setResultPanel({ commandResults: result.commandResult });
         ElMessage.success('重启命令已执行');
         break;
-      case 'archive':
-        result = await archiveService(host, row.programName);
+      }
+      case 'archive': {
+        const result = await archiveService(host, row.programName);
+        setResultPanel({ commandResults: mergeCommandResults(result.commandResult, result.fileResult) as OperationCommandPayload });
         ElMessage.success('归档成功');
         break;
-      case 'restore':
-        result = await restoreService(host, row.programName);
+      }
+      case 'restore': {
+        const result = await restoreService(host, row.programName);
+        setResultPanel({ commandResults: mergeCommandResults(result.commandResult, result.fileResult) as OperationCommandPayload });
         ElMessage.success('还原成功');
         break;
-      case 'delete':
-        result = await deleteService(host, row.programName);
+      }
+      case 'delete': {
+        const result = await deleteService(host, row.programName);
+        setResultPanel({ commandResults: result.commandResults });
         ElMessage.success('删除成功');
         if (currentDetail.value?.programName === row.programName) {
           detailVisible.value = false;
           currentDetail.value = null;
         }
         break;
+      }
       default:
         return;
     }
 
-    lastResult.value = result;
     await loadServices();
 
-    if (detailVisible.value && currentDetail.value?.programName === row.programName) {
+    if (detailVisible.value && currentDetail.value?.programName === row.programName && action !== 'delete') {
       await refreshDetail();
     }
   } catch (error) {
@@ -665,19 +742,25 @@ function handleDropdownAction(cmd: string, row: ServiceListRecord) {
   if (cmd === 'edit') {
     openEditDialog(row);
   } else if (cmd === 'archive' || cmd === 'delete') {
-    handleAction(cmd, row);
+    void handleAction(cmd, row);
   }
 }
 
 async function handleSyncRow(row: ServiceListRecord) {
   actionLoading[row.programName] = 'sync';
-  lastResult.value = null;
 
   try {
     const result = await syncService(selectedHost.value, row.programName);
-    lastResult.value = result;
+    setResultPanel({
+      syncedFields: result.syncedFields,
+      warnings: result.warnings,
+      commandResults: result.commandResults,
+    });
     ElMessage.success('同步完成');
     await loadServices();
+    if (detailVisible.value && currentDetail.value?.programName === row.programName) {
+      await refreshDetail();
+    }
   } catch (error) {
     handleError(error, '同步失败');
   } finally {
@@ -685,13 +768,18 @@ async function handleSyncRow(row: ServiceListRecord) {
   }
 }
 
-async function onDetailSync() {
+async function onDetailSync(detail: SupervisorServiceDetail) {
   await loadServices();
-  await refreshDetail();
+  await refreshDetail(detail.programName);
 }
 
 function openImportDialog() {
   importVisible.value = true;
+}
+
+async function handleImportDone() {
+  importVisible.value = false;
+  await loadServices();
 }
 
 function handleError(error: unknown, fallbackMessage: string) {
@@ -710,7 +798,7 @@ function handleError(error: unknown, fallbackMessage: string) {
 .dashboard__kpi {
   padding: 14px 16px;
   border: 1px solid var(--surface-strong);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--surface);
   display: flex;
   flex-direction: column;
@@ -741,21 +829,37 @@ function handleError(error: unknown, fallbackMessage: string) {
   flex-wrap: wrap;
 }
 
-.dashboard__filter-bar {
+.dashboard__filter-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.15fr) minmax(260px, 1.4fr) minmax(180px, 0.9fr) auto auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.dashboard__filter-field {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dashboard__filter-field--archive {
+  min-width: 240px;
+}
+
+.dashboard__field-label {
+  font-size: 12px;
+  color: var(--text-tertiary);
 }
 
 .dashboard__host-select {
-  width: 220px;
-  flex-shrink: 0;
+  width: 100%;
 }
 
 .dashboard__filter-actions {
   display: flex;
   gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .dashboard__table {
@@ -788,30 +892,35 @@ function handleError(error: unknown, fallbackMessage: string) {
 }
 
 :deep(.dashboard__row--archived) {
-  background-color: #fef2f2;
+  background-color: color-mix(in srgb, var(--danger) 8%, white);
 }
 
 :deep(.dashboard__row--fatal) {
-  background-color: #fffbeb;
+  background-color: color-mix(in srgb, var(--warning) 10%, white);
 }
 
 @media (max-width: 1280px) {
   .dashboard__kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .dashboard__filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 768px) {
-  .dashboard__kpis {
+  .dashboard__kpis,
+  .dashboard__filter-grid {
     grid-template-columns: 1fr;
   }
 
-  .dashboard__filter-bar {
-    flex-direction: column;
-    align-items: stretch;
+  .dashboard__filter-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
-  .dashboard__host-select {
+  .dashboard__header-actions {
     width: 100%;
   }
 }

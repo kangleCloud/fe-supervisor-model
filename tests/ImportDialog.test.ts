@@ -1,11 +1,21 @@
 import { computed, defineComponent, h, inject, provide } from 'vue';
 import { flushPromises, mount } from '@vue/test-utils';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ImportDialog from '@/features/supervisor/components/ImportDialog.vue';
 
-const { mockImportServices } = vi.hoisted(() => ({
+const {
+  mockImportServices,
+  mockMessageSuccess,
+  mockMessageError,
+  mockMessageWarning,
+  mockMessageBoxConfirm,
+} = vi.hoisted(() => ({
   mockImportServices: vi.fn(),
+  mockMessageSuccess: vi.fn(),
+  mockMessageError: vi.fn(),
+  mockMessageWarning: vi.fn(),
+  mockMessageBoxConfirm: vi.fn(),
 }));
 
 vi.mock('@/api/supervisor/supervisorApi', () => ({
@@ -14,11 +24,12 @@ vi.mock('@/api/supervisor/supervisorApi', () => ({
 
 vi.mock('element-plus', () => ({
   ElMessage: {
-    error: vi.fn(),
-    success: vi.fn(),
+    error: mockMessageError,
+    success: mockMessageSuccess,
+    warning: mockMessageWarning,
   },
   ElMessageBox: {
-    confirm: vi.fn(),
+    confirm: mockMessageBoxConfirm,
   },
 }));
 
@@ -65,11 +76,15 @@ function mountDialog(props: { modelValue: boolean; host: string }) {
     props,
     global: {
       stubs: {
+        ElAlert: {
+          props: ['title', 'description'],
+          template: '<div class="alert-stub"><strong>{{ title }}</strong><span>{{ description }}</span></div>',
+        },
         ElDialog: { template: '<div><slot /><slot name="footer" /></div>' },
         ElButton: {
           props: ['type', 'loading', 'icon', 'disabled'],
           emits: ['click'],
-          template: '<button @click="$emit(\'click\')" :disabled="$props.loading"><slot /></button>',
+          template: '<button @click="$emit(\'click\')" :disabled="$props.loading || $props.disabled"><slot /></button>',
         },
         ElIcon: { template: '<i />' },
         ElTag: {
@@ -87,17 +102,16 @@ function mountDialog(props: { modelValue: boolean; host: string }) {
   });
 }
 
-const dryRunReport = {
+const precheckReport = {
   host: '127.0.0.1',
-  mode: 'DRY_RUN' as const,
+  mode: 'PRECHECK' as const,
+  batchId: 'batch-001',
   summary: { planned: 3, imported: 0, updated: 0, skipped: 0 },
   items: [
     {
       configPath: '/etc/supervisor/app.ini',
       fileName: 'app.ini',
-      contentProgramName: 'app',
       programName: 'app',
-      configName: 'app.ini',
       jobName: 'demo',
       moduleName: 'app',
       javaPath: '/usr/local/jdk17/bin/java',
@@ -116,13 +130,13 @@ const dryRunReport = {
   ],
 };
 
-const applyReport = {
-  ...dryRunReport,
-  mode: 'APPLY' as const,
-  summary: { planned: 0, imported: 2, updated: 1, skipped: 0 },
+const commitReport = {
+  ...precheckReport,
+  mode: 'COMMIT' as const,
+  summary: { planned: 1, imported: 1, updated: 0, skipped: 0 },
   items: [
     {
-      ...dryRunReport.items[0],
+      ...precheckReport.items[0],
       result: 'IMPORTED' as const,
       message: 'Imported successfully',
     },
@@ -132,6 +146,7 @@ const applyReport = {
 describe('ImportDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockMessageBoxConfirm.mockResolvedValue(undefined);
   });
 
   it('shows target host name', () => {
@@ -146,19 +161,19 @@ describe('ImportDialog', () => {
     expect(wrapper.text()).toContain('预检导入');
   });
 
-  it('calls importServices with DRY_RUN when "预检导入" is clicked', async () => {
-    mockImportServices.mockResolvedValue(dryRunReport);
+  it('calls importServices with PRECHECK when precheck is clicked', async () => {
+    mockImportServices.mockResolvedValue(precheckReport);
     const wrapper = mountDialog({ modelValue: true, host: '127.0.0.1' });
 
     const precheckBtn = wrapper.findAll('button').find((b) => b.text() === '预检导入');
     expect(precheckBtn).toBeDefined();
     await precheckBtn!.trigger('click');
 
-    expect(mockImportServices).toHaveBeenCalledWith({ host: '127.0.0.1', mode: 'DRY_RUN' });
+    expect(mockImportServices).toHaveBeenCalledWith({ host: '127.0.0.1', mode: 'PRECHECK' });
   });
 
-  it('shows summary section after DRY_RUN completes', async () => {
-    mockImportServices.mockResolvedValue(dryRunReport);
+  it('shows summary section and batchId after PRECHECK completes', async () => {
+    mockImportServices.mockResolvedValue(precheckReport);
     const wrapper = mountDialog({ modelValue: true, host: '127.0.0.1' });
 
     const precheckBtn = wrapper.findAll('button').find((b) => b.text() === '预检导入');
@@ -166,12 +181,12 @@ describe('ImportDialog', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('导入汇总');
-    expect(wrapper.text()).toContain('预检通过');
+    expect(wrapper.text()).toContain('当前批次：batch-001');
     expect(wrapper.text()).toContain('3');
   });
 
-  it('shows "确认导入" button after DRY_RUN with planned > 0', async () => {
-    mockImportServices.mockResolvedValue(dryRunReport);
+  it('shows confirm button after PRECHECK with planned > 0 and no skipped items', async () => {
+    mockImportServices.mockResolvedValue(precheckReport);
     const wrapper = mountDialog({ modelValue: true, host: '127.0.0.1' });
 
     const precheckBtn = wrapper.findAll('button').find((b) => b.text() === '预检导入');
@@ -181,9 +196,35 @@ describe('ImportDialog', () => {
     expect(wrapper.text()).toContain('确认导入');
   });
 
+  it('shows skipped warning and blocks commit when PRECHECK contains skipped items', async () => {
+    mockImportServices.mockResolvedValue({
+      ...precheckReport,
+      summary: { planned: 2, imported: 0, updated: 0, skipped: 1 },
+      items: [
+        ...precheckReport.items,
+        {
+          ...precheckReport.items[0],
+          configPath: '/etc/supervisor/skipped.ini',
+          fileName: 'skipped.ini',
+          result: 'SKIPPED' as const,
+          message: 'metadata incomplete',
+        },
+      ],
+    });
+    const wrapper = mountDialog({ modelValue: true, host: '127.0.0.1' });
+
+    const precheckBtn = wrapper.findAll('button').find((b) => b.text() === '预检导入');
+    await precheckBtn!.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('存在跳过项');
+    expect(wrapper.text()).toContain('存在跳过项，禁止提交');
+    expect(wrapper.text()).not.toContain('确认导入');
+  });
+
   it('shows "无可导入的文件" when planned is 0', async () => {
     mockImportServices.mockResolvedValue({
-      ...dryRunReport,
+      ...precheckReport,
       summary: { planned: 0, imported: 0, updated: 0, skipped: 0 },
     });
     const wrapper = mountDialog({ modelValue: true, host: '127.0.0.1' });
@@ -195,38 +236,71 @@ describe('ImportDialog', () => {
     expect(wrapper.text()).toContain('无可导入的文件');
   });
 
-  it('shows "关闭" button after report is loaded', async () => {
-    mockImportServices.mockResolvedValue(dryRunReport);
+  it('uses previous batchId on COMMIT', async () => {
+    mockImportServices.mockResolvedValueOnce(precheckReport);
+    mockImportServices.mockResolvedValueOnce(commitReport);
     const wrapper = mountDialog({ modelValue: true, host: '127.0.0.1' });
 
     const precheckBtn = wrapper.findAll('button').find((b) => b.text() === '预检导入');
     await precheckBtn!.trigger('click');
     await flushPromises();
 
-    expect(wrapper.text()).toContain('关闭');
+    const confirmBtn = wrapper.findAll('button').find((b) => b.text() === '确认导入');
+    await confirmBtn!.trigger('click');
+    await flushPromises();
+
+    expect(mockImportServices).toHaveBeenNthCalledWith(2, {
+      host: '127.0.0.1',
+      mode: 'COMMIT',
+      batchId: 'batch-001',
+    });
   });
 
-  it('shows "导入完成" tag after APPLY completes', async () => {
-    // First DRY_RUN, then APPLY
-    mockImportServices.mockResolvedValueOnce(dryRunReport);
-    mockImportServices.mockResolvedValueOnce(applyReport);
-
-    // Mock ElMessageBox.confirm to resolve for APPLY
-    const { ElMessageBox } = await import('element-plus');
-    (ElMessageBox.confirm as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
-
+  it('shows "导入完成" tag after COMMIT completes', async () => {
+    mockImportServices.mockResolvedValueOnce(precheckReport);
+    mockImportServices.mockResolvedValueOnce(commitReport);
     const wrapper = mountDialog({ modelValue: true, host: '127.0.0.1' });
 
-    // Run DRY_RUN
     const precheckBtn = wrapper.findAll('button').find((b) => b.text() === '预检导入');
     await precheckBtn!.trigger('click');
     await flushPromises();
 
-    // Click "确认导入"
     const confirmBtn = wrapper.findAll('button').find((b) => b.text() === '确认导入');
     await confirmBtn!.trigger('click');
     await flushPromises();
 
     expect(wrapper.text()).toContain('导入完成');
+  });
+
+  it('clears batch state when host changes', async () => {
+    mockImportServices.mockResolvedValue(precheckReport);
+    const wrapper = mountDialog({ modelValue: true, host: '127.0.0.1' });
+
+    const precheckBtn = wrapper.findAll('button').find((b) => b.text() === '预检导入');
+    await precheckBtn!.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('当前批次：batch-001');
+
+    await wrapper.setProps({ host: '10.1.0.104' });
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain('当前批次：batch-001');
+    expect(wrapper.text()).toContain('预检导入');
+  });
+
+  it('clears batch state when dialog closes', async () => {
+    mockImportServices.mockResolvedValue(precheckReport);
+    const wrapper = mountDialog({ modelValue: true, host: '127.0.0.1' });
+
+    const precheckBtn = wrapper.findAll('button').find((b) => b.text() === '预检导入');
+    await precheckBtn!.trigger('click');
+    await flushPromises();
+
+    const closeBtn = wrapper.findAll('button').find((b) => b.text() === '关闭');
+    await closeBtn!.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.emitted('update:modelValue')).toBeTruthy();
+    expect(wrapper.text()).not.toContain('当前批次：batch-001');
   });
 });

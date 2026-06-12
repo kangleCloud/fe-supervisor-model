@@ -75,7 +75,7 @@ const createDraft = {
   active: 'prod',
   port: 9001,
   jarName: '',
-  configName: '',
+  fileName: '',
   xms: '128m',
   xmx: '128m',
   user: 'root',
@@ -88,7 +88,7 @@ const editDraft = {
   active: 'prod',
   port: 9001,
   jarName: 'member.jar',
-  configName: 'member.ini',
+  fileName: 'member.ini',
   xms: '256m',
   xmx: '256m',
   user: 'root',
@@ -148,13 +148,13 @@ describe('ServiceFormDialog', () => {
     });
 
     const labels = wrapper.findAll('.form-label').map((el) => el.text());
-    // Create mode includes '目标主机' + the standard fields
     expect(labels).toContain('目标主机');
     expect(labels).toContain('运行环境');
     expect(labels).toContain('业务名称');
     expect(labels).toContain('模块名称');
     expect(labels).toContain('Java 路径');
     expect(labels).toContain('端口');
+    expect(labels).toContain('配置文件名');
   });
 
   it('shows create submit button text in create mode', () => {
@@ -197,15 +197,12 @@ describe('ServiceFormDialog', () => {
       modelValue: true,
       mode: 'create',
       submitting: false,
-      initialValue: { ...createDraft, jobName: 'test', moduleName: 'app', active: 'staging' },
+      initialValue: { ...createDraft, jobName: 'test', moduleName: 'app', active: 'staging', fileName: 'app.ini' },
     });
 
     const submitBtn = wrapper.findAll('button').find((b) => b.text() === '创建服务');
     await submitBtn!.trigger('click');
 
-    // Check that a submit was emitted (the dialog submit calls validate first
-    // which will fail since we're using stubs, but the emit should still fire
-    // because the form stub doesn't actually validate)
     const submitEvents = wrapper.emitted('submit');
     expect(submitEvents).toBeTruthy();
     if (submitEvents) {
@@ -213,6 +210,7 @@ describe('ServiceFormDialog', () => {
       expect(payload.jobName).toBe('test');
       expect(payload.moduleName).toBe('app');
       expect(payload.active).toBe('staging');
+      expect(payload.fileName).toBe('app.ini');
     }
   });
 });

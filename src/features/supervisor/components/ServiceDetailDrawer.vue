@@ -21,7 +21,7 @@
       />
 
       <div class="service-detail__toolbar">
-        <StatusTag :state="detail.status?.state" />
+        <StatusTag :state="detail.status" />
         <ManageModeTag :mode="detail.manageMode" />
         <el-tag v-if="detail.isArchived" type="danger" effect="plain">已归档</el-tag>
         <el-button
@@ -36,7 +36,6 @@
         </el-button>
       </div>
 
-      <!-- 基础信息 -->
       <section class="service-detail__section">
         <div class="page__section-header">
           <div>
@@ -49,9 +48,9 @@
           <el-descriptions-item label="纳管模式">
             <ManageModeTag :mode="detail.manageMode" />
           </el-descriptions-item>
-          <el-descriptions-item label="配置文件名">{{ detail.configName }}</el-descriptions-item>
+          <el-descriptions-item label="配置路径">{{ detail.configPath }}</el-descriptions-item>
           <el-descriptions-item label="文件名称">{{ detail.fileName }}</el-descriptions-item>
-          <el-descriptions-item label="程序名（配置中）">{{ detail.contentProgramName }}</el-descriptions-item>
+          <el-descriptions-item label="程序名（配置中）">{{ detail.programName }}</el-descriptions-item>
           <el-descriptions-item label="归档状态">{{ detail.isArchived ? '已归档' : '未归档' }}</el-descriptions-item>
           <el-descriptions-item label="归档时间">{{ detail.archivedAt || '-' }}</el-descriptions-item>
           <el-descriptions-item label="还原时间">{{ detail.restoredAt || '-' }}</el-descriptions-item>
@@ -59,7 +58,6 @@
         </el-descriptions>
       </section>
 
-      <!-- 模板信息 -->
       <section class="service-detail__section">
         <div class="page__section-header">
           <div>
@@ -86,7 +84,6 @@
         </div>
       </section>
 
-      <!-- 运行配置 -->
       <section class="service-detail__section">
         <div class="page__section-header">
           <div>
@@ -95,7 +92,7 @@
         </div>
         <el-descriptions :column="2" border>
           <el-descriptions-item label="运行状态">
-            <StatusTag :state="detail.status?.state" />
+            <StatusTag :state="detail.status" />
           </el-descriptions-item>
           <el-descriptions-item label="PID">{{ detail.pid || '-' }}</el-descriptions-item>
           <el-descriptions-item label="Uptime">{{ detail.uptime || '-' }}</el-descriptions-item>
@@ -114,7 +111,6 @@
         </el-descriptions>
       </section>
 
-      <!-- 同步结果 -->
       <section class="service-detail__section">
         <div class="page__section-header">
           <div>
@@ -131,14 +127,13 @@
         </el-descriptions>
       </section>
 
-      <!-- 内容快照 -->
       <section class="service-detail__section">
         <div class="page__section-header">
           <div>
             <h3 class="page__section-title">主配置内容</h3>
           </div>
         </div>
-        <pre class="service-detail__content">{{ detail.configContent }}</pre>
+        <pre class="service-detail__content">{{ detail.configContent || '当前无配置快照' }}</pre>
       </section>
 
       <section v-if="detail.backupConfigContent" class="service-detail__section">
@@ -165,7 +160,7 @@ import { ElMessage } from 'element-plus';
 import { ref } from 'vue';
 
 import { syncService } from '@/api/supervisor/supervisorApi';
-import type { SupervisorServiceDetail, SyncResponse } from '@/api/supervisor/supervisor.types';
+import type { SupervisorServiceDetail, ServiceSyncResponse } from '@/api/supervisor/supervisor.types';
 import StatusTag from '@/features/supervisor/components/StatusTag.vue';
 import ManageModeTag from '@/features/supervisor/components/ManageModeTag.vue';
 import OperationResultPanel from '@/features/supervisor/components/OperationResultPanel.vue';
@@ -182,7 +177,7 @@ const emit = defineEmits<{
 }>();
 
 const syncing = ref(false);
-const syncResult = ref<SyncResponse | null>(null);
+const syncResult = ref<ServiceSyncResponse | null>(null);
 
 async function handleSync() {
   if (!props.detail) return;
@@ -263,7 +258,7 @@ async function handleSync() {
   margin: 0;
   padding: 16px;
   border-radius: 8px;
-  background: #162028;
+  background: var(--shell-bg);
   color: #e5edf5;
   overflow: auto;
   font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;

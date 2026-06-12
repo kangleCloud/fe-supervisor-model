@@ -16,13 +16,8 @@ export type SupervisorState =
   | 'EXITED'
   | 'UNKNOWN';
 
-export interface SupervisorStatus {
-  programName: string;
-  state: SupervisorState;
-  raw: string;
-}
-
 export type ManageMode = 'TEMPLATE_MANAGED' | 'IMPORTED_READONLY';
+export type ArchivedFilter = 'false' | 'true' | 'all';
 
 export interface ServiceListRecord {
   id: number;
@@ -30,7 +25,6 @@ export interface ServiceListRecord {
   jobName: string | null;
   moduleName: string | null;
   programName: string;
-  configName: string;
   configPath: string;
   fileName: string;
   manageMode: ManageMode;
@@ -50,7 +44,6 @@ export interface ServiceListRecord {
   isArchived: boolean;
   archivedAt: string | null;
   restoredAt: string | null;
-  hasBackup: boolean;
 }
 
 export interface PagedServiceResponse {
@@ -65,7 +58,7 @@ export interface ServiceListQuery {
   host?: string;
   keyword?: string;
   status?: SupervisorState;
-  archived?: boolean;
+  archived?: ArchivedFilter;
   page?: number;
   pageSize?: number;
 }
@@ -77,10 +70,8 @@ export interface SupervisorServiceDetail {
   jobName: string | null;
   moduleName: string | null;
   programName: string;
-  configName: string;
   configPath: string;
   fileName: string;
-  contentProgramName: string;
   manageMode: ManageMode;
   metadataComplete: boolean;
   parseWarnings: string[];
@@ -91,14 +82,14 @@ export interface SupervisorServiceDetail {
   xms: string | null;
   xmx: string | null;
   user: string | null;
-  status: SupervisorStatus | null;
+  status: SupervisorState;
   pid: string | null;
   uptime: string | null;
   command: string | null;
   directory: string | null;
   stdoutLogfile: string | null;
   hasBackup: boolean;
-  configContent: string;
+  configContent: string | null;
   backupConfigContent: string | null;
   lastSyncAt: string | null;
   syncStatus: string | null;
@@ -117,7 +108,7 @@ export interface ServiceCreatePayload {
   active: string;
   port: number;
   jarName?: string;
-  configName?: string;
+  fileName?: string;
   xms?: string;
   xmx?: string;
   user?: string;
@@ -130,14 +121,13 @@ export interface ServiceUpdatePayload {
   active: string;
   port: number;
   jarName?: string;
-  configName?: string;
+  fileName?: string;
   xms?: string;
   xmx?: string;
   user?: string;
 }
 
-export type ImportMode = 'DRY_RUN' | 'APPLY';
-
+export type ImportMode = 'PRECHECK' | 'COMMIT';
 export type ImportResultStatus = 'PLANNED' | 'IMPORTED' | 'UPDATED' | 'SKIPPED';
 
 export interface ImportSummary {
@@ -150,9 +140,7 @@ export interface ImportSummary {
 export interface ImportItem {
   configPath: string;
   fileName: string;
-  contentProgramName: string | null;
   programName: string | null;
-  configName: string | null;
   jobName: string | null;
   moduleName: string | null;
   javaPath: string | null;
@@ -172,6 +160,7 @@ export interface ImportItem {
 export interface ImportReport {
   host: string;
   mode: ImportMode;
+  batchId: string;
   summary: ImportSummary;
   items: ImportItem[];
 }
@@ -184,24 +173,97 @@ export interface StatusRefreshResponse {
 }
 
 export interface CommandStep {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-  backupPath?: string;
+  exitCode?: number | null;
+  stdout?: string;
+  stderr?: string;
+  backupPath?: string | null;
+  configPath?: string | null;
+  path?: string | null;
+  ok?: boolean;
+  exists?: boolean;
+  [key: string]: unknown;
 }
 
-export interface CommandResults {
+export interface LegacyCommandResults {
   steps: CommandStep[];
 }
 
-export interface SyncResponse {
+export type CommandResultCollection = Record<string, CommandStep | null | undefined>;
+export type OperationCommandPayload = LegacyCommandResults | CommandResultCollection | CommandStep;
+
+export interface ServiceSyncResponse {
+  host: string;
+  programName: string;
+  status: SupervisorState;
+  pid: string | null;
+  uptime: string | null;
   syncedFields: string[];
   warnings: string[];
-  commandResults?: CommandResults;
+  lastSyncAt: string | null;
+  syncStatus: string | null;
+  syncError: string | null;
+  commandResults?: CommandResultCollection;
 }
 
-export interface OperationResponse {
-  commandResults?: CommandResults;
-  syncedFields?: string[];
-  warnings?: string[];
+export interface RuntimeActionResponse {
+  host: string;
+  programName: string;
+  action: string;
+  status: SupervisorState;
+  commandResult?: OperationCommandPayload;
+}
+
+export interface ArchiveActionResponse {
+  host: string;
+  programName: string;
+  isArchived: boolean;
+  archivedAt: string | null;
+  restoredAt: string | null;
+  status: SupervisorState;
+  commandResult?: OperationCommandPayload;
+  fileResult?: CommandResultCollection;
+}
+
+export interface ServiceUpdateResponse {
+  host: string;
+  previousProgramName: string;
+  programName: string;
+  configPath: string;
+  fileName: string;
+  manageMode: ManageMode;
+  commandResults?: CommandResultCollection;
+}
+
+export interface ServiceDeleteResponse {
+  host: string;
+  programName: string;
+  deletedConfigPath: string;
+  backupPath: string | null;
+  commandResults?: CommandResultCollection;
+}
+
+export interface ServiceCreateResponse {
+  id: number;
+  host: string;
+  jobName: string | null;
+  moduleName: string | null;
+  programName: string;
+  configPath: string;
+  fileName: string;
+  manageMode: ManageMode;
+  metadataComplete: boolean;
+  parseWarnings: string[];
+  javaPath: string | null;
+  active: string | null;
+  port: number | null;
+  jarName: string | null;
+  xms: string | null;
+  xmx: string | null;
+  user: string | null;
+  status: SupervisorState | null;
+  fileState: string | null;
+  isArchived: boolean;
+  archivedAt: string | null;
+  restoredAt: string | null;
+  commandResults?: CommandResultCollection;
 }

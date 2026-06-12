@@ -6,7 +6,7 @@ import OperationResultPanel from '@/features/supervisor/components/OperationResu
 function mountPanel(props: {
   syncedFields?: string[];
   warnings?: string[];
-  commandResults?: { steps: { exitCode: number; stdout: string; stderr: string; backupPath?: string }[] };
+  commandResults?: Record<string, unknown> | { steps: { exitCode: number; stdout: string; stderr: string }[] };
 }) {
   return mount(OperationResultPanel, {
     props,
@@ -34,12 +34,6 @@ describe('OperationResultPanel', () => {
     expect(wrapper.find('.op-result').exists()).toBe(false);
   });
 
-  it('renders nothing when syncedFields is empty array', () => {
-    const wrapper = mountPanel({ syncedFields: [] });
-
-    expect(wrapper.find('.op-result').exists()).toBe(false);
-  });
-
   it('shows synced fields section when syncedFields has items', () => {
     const wrapper = mountPanel({ syncedFields: ['configContent', 'command'] });
 
@@ -55,7 +49,7 @@ describe('OperationResultPanel', () => {
     expect(wrapper.text()).toContain('Connection timeout');
   });
 
-  it('shows command execution results section', () => {
+  it('shows legacy step-based command results section', () => {
     const wrapper = mountPanel({
       commandResults: {
         steps: [
@@ -72,33 +66,37 @@ describe('OperationResultPanel', () => {
     expect(wrapper.text()).toContain('exit 1');
   });
 
-  it('renders stdout content in code block', () => {
+  it('renders keyed command result objects', () => {
     const wrapper = mountPanel({
       commandResults: {
-        steps: [{ exitCode: 0, stdout: 'deploy success', stderr: '' }],
+        stop: { exitCode: 0, stdout: 'stopped', stderr: '' },
+        reread: { exitCode: 0, stdout: 'reread ok', stderr: '' },
       },
     });
 
-    expect(wrapper.text()).toContain('deploy success');
+    expect(wrapper.text()).toContain('stop');
+    expect(wrapper.text()).toContain('reread');
+    expect(wrapper.text()).toContain('stopped');
+    expect(wrapper.text()).toContain('reread ok');
   });
 
-  it('renders stderr content in stderr code block', () => {
+  it('renders structured command result metadata when stdout is absent', () => {
     const wrapper = mountPanel({
       commandResults: {
-        steps: [{ exitCode: 1, stdout: '', stderr: 'permission denied' }],
+        config: { exists: true, path: '/etc/supervisor/app.ini' },
       },
     });
 
-    expect(wrapper.text()).toContain('permission denied');
+    expect(wrapper.text()).toContain('config');
+    expect(wrapper.text()).toContain('exists: true');
+    expect(wrapper.text()).toContain('/etc/supervisor/app.ini');
   });
 
   it('shows header with close button', () => {
     const wrapper = mountPanel({ syncedFields: ['field1'] });
 
     expect(wrapper.text()).toContain('操作结果');
-    // The close button should exist
-    const buttons = wrapper.findAll('button');
-    expect(buttons.length).toBeGreaterThan(0);
+    expect(wrapper.findAll('button').length).toBeGreaterThan(0);
   });
 
   it('emits close when close button is clicked', async () => {
@@ -115,7 +113,7 @@ describe('OperationResultPanel', () => {
       syncedFields: ['configContent'],
       warnings: ['Memory warning'],
       commandResults: {
-        steps: [{ exitCode: 0, stdout: 'done', stderr: '' }],
+        sync: { exitCode: 0, stdout: 'done', stderr: '' },
       },
     });
 
@@ -127,7 +125,7 @@ describe('OperationResultPanel', () => {
   it('renders exit 0 as success tag type', () => {
     const wrapper = mountPanel({
       commandResults: {
-        steps: [{ exitCode: 0, stdout: 'ok', stderr: '' }],
+        sync: { exitCode: 0, stdout: 'ok', stderr: '' },
       },
     });
 
@@ -136,15 +134,15 @@ describe('OperationResultPanel', () => {
     expect(successTag.text()).toBe('exit 0');
   });
 
-  it('renders non-zero exit as danger tag type', () => {
+  it('renders missing exit code as info tag type', () => {
     const wrapper = mountPanel({
       commandResults: {
-        steps: [{ exitCode: 127, stdout: '', stderr: 'command not found' }],
+        config: { exists: false },
       },
     });
 
-    const dangerTag = wrapper.find('.danger');
-    expect(dangerTag.exists()).toBe(true);
-    expect(dangerTag.text()).toBe('exit 127');
+    const infoTag = wrapper.find('.info');
+    expect(infoTag.exists()).toBe(true);
+    expect(infoTag.text()).toBe('info');
   });
 });

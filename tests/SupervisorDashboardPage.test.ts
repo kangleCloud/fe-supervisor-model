@@ -252,13 +252,17 @@ function mountPage() {
       },
       stubs: {
         ElAlert: {
-          props: ['title'],
-          template: '<div><div>{{ title }}</div><slot /></div>',
+          props: ['title', 'description'],
+          template: '<div><div>{{ title }}</div><div>{{ description }}</div><slot /></div>',
         },
         ElButton: ElButtonStub,
         ElInput: ElInputStub,
         ElOption: ElOptionStub,
         ElPagination: ElPaginationStub,
+        ElProgress: {
+          props: ['percentage'],
+          template: '<div class="el-progress-stub">{{ percentage }}</div>',
+        },
         ElSelect: ElSelectStub,
         ElTable: ElTableStub,
         ElTableColumn: ElTableColumnStub,
@@ -293,6 +297,7 @@ function mountPage() {
         },
         ElRadioGroup: {
           props: ['modelValue'],
+          emits: ['update:modelValue', 'change'],
           template: '<div><slot /></div>',
         },
         ElTag: {
@@ -305,6 +310,11 @@ function mountPage() {
         ImportDialog: true,
         OperationResultPanel: true,
         ManageModeTag: ManageModeTagStub,
+        ServerHealthStrip: defineComponent({
+          props: ['snapshot'],
+          emits: ['refresh'],
+          template: '<div class="server-health-strip-stub">CPU {{ snapshot?.cpuUsage }} 内存 {{ snapshot?.memoryUsage }} <button data-testid="refresh-health" @click="$emit(\'refresh\')">刷新概况</button></div>',
+        }),
         ServiceDetailDrawer: true,
         ServiceFormDialog: true,
         StatusTag: StatusTagStub,
@@ -329,7 +339,6 @@ const pagedResponse = {
       jobName: 'demo',
       moduleName: 'member',
       programName: 'demo_member',
-      configName: 'demo_member.ini',
       configPath: 'demo_member.ini',
       fileName: 'demo_member.ini',
       manageMode: 'TEMPLATE_MANAGED',
@@ -346,6 +355,9 @@ const pagedResponse = {
       pid: '12345',
       uptime: '0:10:00',
       updateTime: '2026-06-10 10:00:00',
+      isArchived: false,
+      archivedAt: null,
+      restoredAt: null,
     },
   ],
   page: 1,
@@ -354,11 +366,44 @@ const pagedResponse = {
   pages: 1,
 };
 
+const detailResponse = {
+  id: 1,
+  host: '127.0.0.1',
+  hostName: 'local',
+  programName: 'demo_member',
+  configPath: 'demo_member.ini',
+  fileName: 'demo_member.ini',
+  jobName: 'demo',
+  moduleName: 'member',
+  javaPath: '/usr/local/jdk17/bin/java',
+  active: 'prod',
+  port: 9001,
+  jarName: 'member.jar',
+  xms: '128m',
+  xmx: '128m',
+  user: 'root',
+  status: 'RUNNING',
+  pid: '12345',
+  uptime: '0:10:00',
+  command: 'java -jar member.jar',
+  directory: '/data/app',
+  stdoutLogfile: '/data/logs/member.log',
+  hasBackup: false,
+  configContent: null,
+  backupConfigContent: null,
+  lastSyncAt: null,
+  syncStatus: 'UNKNOWN',
+  syncError: null,
+  isArchived: false,
+  archivedAt: null,
+  restoredAt: null,
+  updatedAt: null,
+};
+
 const archivedRecord = {
   id: 2,
   host: '127.0.0.1',
   programName: 'archived_app',
-  configName: 'archived_app.ini',
   configPath: 'archived_app.ini',
   fileName: 'archived_app.ini',
   manageMode: 'TEMPLATE_MANAGED',
@@ -380,7 +425,6 @@ const archivedRecord = {
   isArchived: true,
   archivedAt: '2026-06-09 10:00:00',
   restoredAt: null,
-  hasBackup: false,
 };
 
 const stoppedRecord = {
@@ -389,7 +433,6 @@ const stoppedRecord = {
   jobName: 'demo',
   moduleName: 'app',
   programName: 'demo_app',
-  configName: 'demo_app.ini',
   configPath: 'demo_app.ini',
   fileName: 'demo_app.ini',
   manageMode: 'IMPORTED_READONLY',
@@ -409,14 +452,12 @@ const stoppedRecord = {
   isArchived: false,
   archivedAt: null,
   restoredAt: null,
-  hasBackup: false,
 };
 
 const fatalRecord = {
   id: 4,
   host: '127.0.0.1',
   programName: 'fatal_svc',
-  configName: 'fatal_svc.ini',
   configPath: 'fatal_svc.ini',
   fileName: 'fatal_svc.ini',
   manageMode: 'TEMPLATE_MANAGED',
@@ -438,7 +479,6 @@ const fatalRecord = {
   isArchived: false,
   archivedAt: null,
   restoredAt: null,
-  hasBackup: false,
 };
 
 const archivedPagedResponse = {
@@ -462,22 +502,22 @@ describe('SupervisorDashboardPage', () => {
     vi.clearAllMocks();
     mockListHosts.mockResolvedValue([localHost]);
     mockListServices.mockResolvedValue(pagedResponse);
+    mockGetServiceDetail.mockResolvedValue(detailResponse);
     mockRefreshServiceStatus.mockResolvedValue({
       host: '127.0.0.1',
       total: 1,
       updated: 1,
       missing: 0,
     });
-    mockArchiveService.mockResolvedValue({});
-    mockDeleteService.mockResolvedValue({});
-    mockRestartService.mockResolvedValue({});
-    mockRestoreService.mockResolvedValue({});
-    mockStartService.mockResolvedValue({});
-    mockStopService.mockResolvedValue({});
-    mockSyncService.mockResolvedValue({});
-    mockUpdateService.mockResolvedValue({});
-    mockCreateService.mockResolvedValue({});
-    mockGetServiceDetail.mockResolvedValue({});
+    mockArchiveService.mockResolvedValue({ commandResult: {}, fileResult: {} });
+    mockDeleteService.mockResolvedValue({ commandResults: {} });
+    mockRestartService.mockResolvedValue({ commandResult: {} });
+    mockRestoreService.mockResolvedValue({ commandResult: {}, fileResult: {} });
+    mockStartService.mockResolvedValue({ commandResult: {} });
+    mockStopService.mockResolvedValue({ commandResult: {} });
+    mockSyncService.mockResolvedValue({ syncedFields: [], warnings: [], commandResults: {} });
+    mockUpdateService.mockResolvedValue({ programName: 'demo_member', commandResults: {} });
+    mockCreateService.mockResolvedValue({ commandResults: {} });
     mockMessageBoxConfirm.mockResolvedValue(undefined);
   });
 
@@ -490,7 +530,7 @@ describe('SupervisorDashboardPage', () => {
       host: '127.0.0.1',
       keyword: undefined,
       status: undefined,
-      archived: false,
+      archived: 'false',
       page: 1,
       pageSize: 10,
     });
@@ -528,7 +568,7 @@ describe('SupervisorDashboardPage', () => {
       host: '127.0.0.1',
       keyword: undefined,
       status: undefined,
-      archived: false,
+      archived: 'false',
       page: 2,
       pageSize: 10,
     });
@@ -552,20 +592,59 @@ describe('SupervisorDashboardPage', () => {
     expect(mockRefreshServiceStatus.mock.invocationCallOrder[0]).toBeLessThan(mockListServices.mock.invocationCallOrder[0]);
   });
 
-  it('defaults to archived=false in listServices call', async () => {
+  it('defaults to archived="false" in listServices call', async () => {
     mountPage();
     await flushPromises();
 
     expect(mockListServices).toHaveBeenCalledWith(
-      expect.objectContaining({ archived: false }),
+      expect.objectContaining({ archived: 'false' }),
     );
+  });
+
+  it('re-requests when page size changes', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+    mockListServices.mockClear();
+
+    await wrapper.get('.page-size-20').trigger('click');
+    await flushPromises();
+
+    expect(mockListServices).toHaveBeenCalledWith(expect.objectContaining({ page: 1, pageSize: 20 }));
+  });
+
+  it('re-requests when host changes', async () => {
+    mockListHosts.mockResolvedValue([
+      localHost,
+      { name: 'remote', ip: '10.1.0.104', enabled: true, executorType: 'ansible', ansiblePattern: 'remote' },
+    ]);
+    const wrapper = mountPage();
+    await flushPromises();
+    mockListServices.mockClear();
+
+    const selects = wrapper.findAll('select');
+    await selects[0].setValue('10.1.0.104');
+    await flushPromises();
+
+    expect(mockListServices).toHaveBeenCalledWith(expect.objectContaining({ host: '10.1.0.104', archived: 'false' }));
+  });
+
+  it('renders server health strip and refreshes it', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('CPU');
+    expect(wrapper.text()).toContain('内存');
+
+    const refreshHealthButton = wrapper.find('[data-testid="refresh-health"]');
+    await refreshHealthButton.trigger('click');
+
+    expect(mockMessageSuccess).toHaveBeenCalledWith('服务器概况已刷新');
   });
 
   it('renders RUNNING row with stop and restart buttons', async () => {
     const wrapper = mountPage();
     await flushPromises();
 
-    // RUNNING row: should have stop and restart buttons, no start button
     expect(wrapper.find('[data-testid="action-stop"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="action-restart"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="action-start"]').exists()).toBe(false);
@@ -600,7 +679,6 @@ describe('SupervisorDashboardPage', () => {
     const wrapper = mountPage();
     await flushPromises();
 
-    // FATAL is in showStartAction list
     expect(wrapper.find('[data-testid="action-start"]').exists()).toBe(true);
   });
 
@@ -610,7 +688,6 @@ describe('SupervisorDashboardPage', () => {
     const wrapper = mountPage();
     await flushPromises();
 
-    // Archived row: detail + restore, no sync/start/stop/restart
     expect(wrapper.find('[data-testid="action-detail"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="action-restore"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="action-sync"]').exists()).toBe(false);

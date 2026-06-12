@@ -48,8 +48,8 @@
             </el-form-item>
           </el-col>
           <el-col :xs="24" :md="12">
-            <el-form-item label="配置文件名" prop="configName">
-              <el-input v-model="draft.configName" placeholder="留空时自动生成" />
+            <el-form-item label="配置文件名" prop="fileName">
+              <el-input v-model="draft.fileName" placeholder="留空时自动生成" />
             </el-form-item>
           </el-col>
 
