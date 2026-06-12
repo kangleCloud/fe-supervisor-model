@@ -1,4 +1,4 @@
-import { computed, defineComponent, h, inject, provide } from 'vue';
+import { computed, defineComponent, h, inject, provide, type ComputedRef } from 'vue';
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -21,6 +21,7 @@ const {
   mockMessageError,
   mockMessageSuccess,
   mockMessageBoxConfirm,
+  mockRefreshOverview,
 } = vi.hoisted(() => ({
   mockArchiveService: vi.fn(),
   mockCreateService: vi.fn(),
@@ -38,7 +39,53 @@ const {
   mockMessageError: vi.fn(),
   mockMessageSuccess: vi.fn(),
   mockMessageBoxConfirm: vi.fn(),
+  mockRefreshOverview: vi.fn(),
 }));
+
+const overviewState: {
+  overview: ComputedRef<{
+    host: string;
+    hostName: string;
+    executorType: string;
+    available: boolean;
+    connectionState: 'CONNECTED' | 'UNREACHABLE' | 'UNSUPPORTED';
+    collectedAt: string;
+    cpu: { usagePercent: number };
+    memory: { usagePercent: number; usedBytes: number; totalBytes: number; usedText: string; totalText: string };
+    checks: { supervisorctlAvailable: boolean; confDirReadable: boolean };
+    warnings: string[];
+  } | null>;
+  loading: ComputedRef<boolean>;
+  refreshing: ComputedRef<boolean>;
+  error: ComputedRef<string | null>;
+  refresh: typeof mockRefreshOverview;
+} = {
+  overview: computed(() => ({
+    host: '127.0.0.1',
+    hostName: 'local',
+    executorType: 'local',
+    available: false,
+    connectionState: 'UNSUPPORTED' as const,
+    collectedAt: '2026-06-12 18:32:00',
+    cpu: { usagePercent: 0 },
+    memory: {
+      usagePercent: 0,
+      usedBytes: 0,
+      totalBytes: 0,
+      usedText: '0 B',
+      totalText: '0 B',
+    },
+    checks: {
+      supervisorctlAvailable: false,
+      confDirReadable: false,
+    },
+    warnings: ['local 执行器暂不支持服务器概况实时采集，仅支持远端 Linux 主机'],
+  })),
+  loading: computed(() => false),
+  refreshing: computed(() => false),
+  error: computed(() => null as string | null),
+  refresh: mockRefreshOverview,
+};
 
 vi.mock('@/api/supervisor/supervisorApi', () => ({
   archiveService: mockArchiveService,
@@ -54,6 +101,10 @@ vi.mock('@/api/supervisor/supervisorApi', () => ({
   stopService: mockStopService,
   syncService: mockSyncService,
   updateService: mockUpdateService,
+}));
+
+vi.mock('@/features/supervisor/composables/useSupervisorOverview', () => ({
+  useSupervisorOverview: () => overviewState,
 }));
 
 vi.mock('element-plus', () => ({
@@ -259,10 +310,6 @@ function mountPage() {
         ElInput: ElInputStub,
         ElOption: ElOptionStub,
         ElPagination: ElPaginationStub,
-        ElProgress: {
-          props: ['percentage'],
-          template: '<div class="el-progress-stub">{{ percentage }}</div>',
-        },
         ElSelect: ElSelectStub,
         ElTable: ElTableStub,
         ElTableColumn: ElTableColumnStub,
@@ -311,9 +358,9 @@ function mountPage() {
         OperationResultPanel: true,
         ManageModeTag: ManageModeTagStub,
         ServerHealthStrip: defineComponent({
-          props: ['snapshot'],
+          props: ['overview', 'loading', 'refreshing', 'error'],
           emits: ['refresh'],
-          template: '<div class="server-health-strip-stub">CPU {{ snapshot?.cpuUsage }} 内存 {{ snapshot?.memoryUsage }} <button data-testid="refresh-health" @click="$emit(\'refresh\')">刷新概况</button></div>',
+          template: '<div class="server-health-strip-stub">{{ overview?.connectionState }} {{ overview?.cpu.usagePercent }} {{ overview?.memory.usedText }} {{ overview?.collectedAt }} {{ error }} {{ overview?.warnings?.join("|") }} <button data-testid="refresh-health" @click="$emit(\'refresh\')">刷新概况</button></div>',
         }),
         ServiceDetailDrawer: true,
         ServiceFormDialog: true,
@@ -519,6 +566,31 @@ describe('SupervisorDashboardPage', () => {
     mockUpdateService.mockResolvedValue({ programName: 'demo_member', commandResults: {} });
     mockCreateService.mockResolvedValue({ commandResults: {} });
     mockMessageBoxConfirm.mockResolvedValue(undefined);
+    mockRefreshOverview.mockResolvedValue({ success: true });
+    overviewState.overview = computed(() => ({
+      host: '127.0.0.1',
+      hostName: 'local',
+      executorType: 'local',
+      available: false,
+      connectionState: 'UNSUPPORTED',
+      collectedAt: '2026-06-12 18:32:00',
+      cpu: { usagePercent: 0 },
+      memory: {
+        usagePercent: 0,
+        usedBytes: 0,
+        totalBytes: 0,
+        usedText: '0 B',
+        totalText: '0 B',
+      },
+      checks: {
+        supervisorctlAvailable: false,
+        confDirReadable: false,
+      },
+      warnings: ['local 执行器暂不支持服务器概况实时采集，仅支持远端 Linux 主机'],
+    }));
+    overviewState.loading = computed(() => false);
+    overviewState.refreshing = computed(() => false);
+    overviewState.error = computed(() => null);
   });
 
   it('renders paged records without crashing and shows string status', async () => {
@@ -628,17 +700,94 @@ describe('SupervisorDashboardPage', () => {
     expect(mockListServices).toHaveBeenCalledWith(expect.objectContaining({ host: '10.1.0.104', archived: 'false' }));
   });
 
-  it('renders server health strip and refreshes it', async () => {
+  it('refreshes overview and shows updated success message', async () => {
     const wrapper = mountPage();
     await flushPromises();
-
-    expect(wrapper.text()).toContain('CPU');
-    expect(wrapper.text()).toContain('内存');
 
     const refreshHealthButton = wrapper.find('[data-testid="refresh-health"]');
     await refreshHealthButton.trigger('click');
 
-    expect(mockMessageSuccess).toHaveBeenCalledWith('服务器概况已刷新');
+    expect(mockRefreshOverview).toHaveBeenCalledWith(true);
+    expect(mockMessageSuccess).toHaveBeenCalledWith('服务器概况已更新');
+  });
+
+  it('renders CONNECTED overview data', async () => {
+    overviewState.overview = computed(() => ({
+      host: '10.1.0.104',
+      hostName: 'web-104-host',
+      executorType: 'ansible',
+      available: true,
+      connectionState: 'CONNECTED',
+      collectedAt: '2026-06-12 18:30:00',
+      cpu: { usagePercent: 12.34 },
+      memory: {
+        usagePercent: 50,
+        usedBytes: 4294967296,
+        totalBytes: 8589934592,
+        usedText: '4.00 GB',
+        totalText: '8.00 GB',
+      },
+      checks: {
+        supervisorctlAvailable: true,
+        confDirReadable: true,
+      },
+      warnings: [],
+    }));
+
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('CONNECTED');
+    expect(wrapper.text()).toContain('12.34');
+    expect(wrapper.text()).toContain('4.00 GB');
+    expect(wrapper.text()).toContain('2026-06-12 18:30:00');
+  });
+
+  it('renders UNSUPPORTED overview with backend warnings', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('UNSUPPORTED');
+    expect(wrapper.text()).toContain('local 执行器暂不支持服务器概况实时采集，仅支持远端 Linux 主机');
+  });
+
+  it('treats UNREACHABLE as valid overview state instead of error branch', async () => {
+    overviewState.overview = computed(() => ({
+      host: '10.1.0.104',
+      hostName: 'web-104',
+      executorType: 'ansible',
+      available: false,
+      connectionState: 'UNREACHABLE',
+      collectedAt: '2026-06-12 18:31:00',
+      cpu: { usagePercent: 0 },
+      memory: {
+        usagePercent: 0,
+        usedBytes: 0,
+        totalBytes: 0,
+        usedText: '0 B',
+        totalText: '0 B',
+      },
+      checks: {
+        supervisorctlAvailable: false,
+        confDirReadable: false,
+      },
+      warnings: ['目标主机不可达: ssh timeout'],
+    }));
+
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('UNREACHABLE');
+    expect(wrapper.text()).toContain('目标主机不可达: ssh timeout');
+    expect(mockMessageError).not.toHaveBeenCalled();
+  });
+
+  it('shows overview request error without treating available=false as failure', async () => {
+    overviewState.error = computed(() => 'network failed');
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('network failed');
   });
 
   it('renders RUNNING row with stop and restart buttons', async () => {

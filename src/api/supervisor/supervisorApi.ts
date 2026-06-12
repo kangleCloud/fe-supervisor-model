@@ -18,10 +18,35 @@ import type {
   ServiceSyncResponse,
   StatusRefreshResponse,
   SupervisorHost,
+  SupervisorOverviewResponse,
   SupervisorServiceDetail,
 } from '@/api/supervisor/supervisor.types';
 
 const SUPERVISOR = `${ADMIN_API_PREFIX}/supervisor`;
+
+interface RawSupervisorOverviewResponse {
+  host: string;
+  hostName: string;
+  executorType: string;
+  available: boolean;
+  connectionState: 'CONNECTED' | 'UNREACHABLE' | 'UNSUPPORTED';
+  collectedAt: string;
+  cpu: {
+    usagePercent: number;
+  };
+  memory: {
+    usagePercent: number;
+    usedBytes: number;
+    totalBytes: number;
+    usedText: string;
+    totalText: string;
+  };
+  checks: {
+    supervisorctlAvailable: boolean;
+    confDirReadable: boolean;
+  };
+  warnings: string[];
+}
 
 interface RawServiceListRecord {
   id: number;
@@ -432,6 +457,14 @@ export function listHosts() {
   return request<SupervisorHost[]>({
     method: 'get',
     url: `${SUPERVISOR}/hosts`,
+  });
+}
+
+export async function getSupervisorOverview(host: string) {
+  return request<SupervisorOverviewResponse>({
+    method: 'get',
+    url: `${SUPERVISOR}/overview`,
+    params: { host },
   });
 }
 

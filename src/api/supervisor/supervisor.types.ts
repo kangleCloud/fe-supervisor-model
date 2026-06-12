@@ -165,6 +165,38 @@ export interface ImportReport {
   items: ImportItem[];
 }
 
+export type SupervisorOverviewConnectionState = 'CONNECTED' | 'UNREACHABLE' | 'UNSUPPORTED';
+
+export interface SupervisorOverviewCpu {
+  usagePercent: number;
+}
+
+export interface SupervisorOverviewMemory {
+  usagePercent: number;
+  usedBytes: number;
+  totalBytes: number;
+  usedText: string;
+  totalText: string;
+}
+
+export interface SupervisorOverviewChecks {
+  supervisorctlAvailable: boolean;
+  confDirReadable: boolean;
+}
+
+export interface SupervisorOverviewResponse {
+  host: string;
+  hostName: string;
+  executorType: string;
+  available: boolean;
+  connectionState: SupervisorOverviewConnectionState;
+  collectedAt: string;
+  cpu: SupervisorOverviewCpu;
+  memory: SupervisorOverviewMemory;
+  checks: SupervisorOverviewChecks;
+  warnings: string[];
+}
+
 export interface StatusRefreshResponse {
   host: string;
   total: number;

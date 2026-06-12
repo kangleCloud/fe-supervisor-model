@@ -3,13 +3,14 @@
     <div class="page__section-header">
       <div>
         <h2 class="page__section-title">远程服务器概况</h2>
-        <p class="page__section-subtitle">当前按主机展示 CPU、内存与基础状态，后续可直接替换为真实接口。</p>
+        <p class="page__section-subtitle">实时展示目标主机概况、基础检查与告警信息。</p>
       </div>
       <div class="server-health__header-actions">
         <el-button
           :icon="RefreshRight"
           plain
-          :disabled="!snapshot"
+          :disabled="!host"
+          :loading="refreshing"
           data-testid="refresh-health"
           @click="emit('refresh')"
         >
@@ -19,24 +20,38 @@
     </div>
 
     <EmptyState
-      v-if="!snapshot"
+      v-if="!host"
       :icon="Monitor"
       title="未选择主机"
       description="请先在上方筛选区选择目标主机。"
     />
 
-    <template v-else>
+    <div v-else-if="loading && !overview" class="server-health__skeleton">
+      <el-skeleton :rows="6" animated />
+    </div>
+
+    <template v-else-if="overview">
+      <el-alert
+        v-if="error"
+        title="主机概况刷新失败"
+        :description="error"
+        type="error"
+        :closable="false"
+        show-icon
+        class="server-health__alert"
+      />
+
       <div class="server-health__summary">
         <div class="server-health__identity">
           <div class="server-health__identity-label">目标主机</div>
           <div class="server-health__identity-value">{{ hostLabel }}</div>
-          <div class="server-health__identity-meta">{{ snapshot.host }} · 最近刷新 {{ snapshot.refreshedAt }}</div>
+          <div class="server-health__identity-meta">最近采集 {{ overview.collectedAt }}</div>
         </div>
 
         <div class="server-health__status-group">
-          <el-tag :type="statusTagType" effect="light">{{ snapshot.status }}</el-tag>
-          <el-tag effect="plain">{{ host?.executorType || 'unknown' }}</el-tag>
-          <el-tag v-if="host?.enabled" type="success" effect="plain">已启用</el-tag>
+          <el-tag :type="connectionTagType" effect="light">{{ connectionLabel }}</el-tag>
+          <el-tag effect="plain">{{ overview.executorType }}</el-tag>
+          <el-tag v-if="host.enabled" type="success" effect="plain">已启用</el-tag>
           <el-tag v-else type="info" effect="plain">未启用</el-tag>
         </div>
       </div>
@@ -44,30 +59,64 @@
       <div class="server-health__grid">
         <div class="server-health__card">
           <div class="server-health__card-label">CPU 使用率</div>
-          <div class="server-health__card-value">{{ snapshot.cpuUsage }}%</div>
-          <el-progress :percentage="snapshot.cpuUsage" :stroke-width="10" :color="progressColor(snapshot.cpuUsage)" />
+          <div class="server-health__card-value">{{ overview.cpu.usagePercent.toFixed(2) }}%</div>
+          <el-progress :percentage="progressValue(overview.cpu.usagePercent)" :stroke-width="10" :color="progressColor(overview.cpu.usagePercent)" />
         </div>
 
         <div class="server-health__card">
           <div class="server-health__card-label">内存使用率</div>
-          <div class="server-health__card-value">{{ snapshot.memoryUsage }}%</div>
-          <el-progress :percentage="snapshot.memoryUsage" :stroke-width="10" :color="progressColor(snapshot.memoryUsage)" />
+          <div class="server-health__card-value">{{ overview.memory.usagePercent.toFixed(2) }}%</div>
+          <el-progress :percentage="progressValue(overview.memory.usagePercent)" :stroke-width="10" :color="progressColor(overview.memory.usagePercent)" />
         </div>
 
         <div class="server-health__card">
           <div class="server-health__card-label">内存占用</div>
-          <div class="server-health__card-value">{{ snapshot.memoryUsed }}</div>
-          <div class="server-health__card-meta">总内存 {{ snapshot.memoryTotal }}</div>
+          <div class="server-health__card-value">{{ overview.memory.usedText }}</div>
+          <div class="server-health__card-meta">总内存 {{ overview.memory.totalText }}</div>
         </div>
 
         <div class="server-health__card">
-          <div class="server-health__card-label">关键状态</div>
-          <ul class="server-health__highlights">
-            <li v-for="highlight in snapshot.highlights" :key="highlight">{{ highlight }}</li>
-          </ul>
+          <div class="server-health__card-label">基础检查</div>
+          <div class="server-health__checks">
+            <div class="server-health__check-item">
+              <span>supervisorctl</span>
+              <el-tag :type="overview.checks.supervisorctlAvailable ? 'success' : 'danger'" effect="plain">
+                {{ overview.checks.supervisorctlAvailable ? '可用' : '不可用' }}
+              </el-tag>
+            </div>
+            <div class="server-health__check-item">
+              <span>conf 目录</span>
+              <el-tag :type="overview.checks.confDirReadable ? 'success' : 'danger'" effect="plain">
+                {{ overview.checks.confDirReadable ? '可读' : '不可读' }}
+              </el-tag>
+            </div>
+          </div>
         </div>
       </div>
+
+      <el-alert
+        v-if="overview.warnings.length"
+        title="主机提示"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="server-health__alert"
+      >
+        <ul class="server-health__warnings">
+          <li v-for="warning in overview.warnings" :key="warning">{{ warning }}</li>
+        </ul>
+      </el-alert>
     </template>
+
+    <el-alert
+      v-else-if="error"
+      title="主机概况加载失败"
+      :description="error"
+      type="error"
+      :closable="false"
+      show-icon
+      class="server-health__alert"
+    />
   </section>
 </template>
 
@@ -75,13 +124,15 @@
 import { Monitor, RefreshRight } from '@element-plus/icons-vue';
 import { computed } from 'vue';
 
-import type { SupervisorHost } from '@/api/supervisor/supervisor.types';
-import type { ServerHealthSnapshot } from '@/features/supervisor/composables/useMockServerHealth';
+import type { SupervisorHost, SupervisorOverviewResponse } from '@/api/supervisor/supervisor.types';
 import EmptyState from '@/components/EmptyState.vue';
 
 const props = defineProps<{
   host: SupervisorHost | null;
-  snapshot: ServerHealthSnapshot | null;
+  overview: SupervisorOverviewResponse | null;
+  loading: boolean;
+  refreshing: boolean;
+  error: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -89,25 +140,44 @@ const emit = defineEmits<{
 }>();
 
 const hostLabel = computed(() => {
-  if (!props.host) {
-    return props.snapshot?.host || '-';
+  if (!props.host && !props.overview) {
+    return '-';
   }
 
-  return `${props.host.name} (${props.host.ip})`;
+  const name = props.overview?.hostName || props.host?.name || '-';
+  const ip = props.overview?.host || props.host?.ip || '-';
+  return `${name} (${ip})`;
 });
 
-const statusTagType = computed(() => {
-  switch (props.snapshot?.status) {
-    case 'HEALTHY':
+const connectionTagType = computed(() => {
+  switch (props.overview?.connectionState) {
+    case 'CONNECTED':
       return 'success';
-    case 'DEGRADED':
-      return 'warning';
-    case 'OFFLINE':
+    case 'UNREACHABLE':
       return 'danger';
+    case 'UNSUPPORTED':
+      return 'warning';
     default:
       return 'info';
   }
 });
+
+const connectionLabel = computed(() => {
+  switch (props.overview?.connectionState) {
+    case 'CONNECTED':
+      return '已连接';
+    case 'UNREACHABLE':
+      return '不可达';
+    case 'UNSUPPORTED':
+      return '不支持';
+    default:
+      return '未知';
+  }
+});
+
+function progressValue(value: number) {
+  return Math.max(0, Math.min(100, Number(value.toFixed(2))));
+}
 
 function progressColor(value: number) {
   if (value >= 80) {
@@ -125,6 +195,10 @@ function progressColor(value: number) {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.server-health__skeleton {
+  padding: 8px 0;
 }
 
 .server-health__summary {
@@ -198,10 +272,27 @@ function progressColor(value: number) {
   color: var(--text-secondary);
 }
 
-.server-health__highlights {
+.server-health__checks {
+  display: grid;
+  gap: 10px;
+}
+
+.server-health__check-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.server-health__alert {
+  margin-top: 16px;
+}
+
+.server-health__warnings {
   margin: 0;
   padding-left: 18px;
-  color: var(--text-secondary);
   display: grid;
   gap: 6px;
 }

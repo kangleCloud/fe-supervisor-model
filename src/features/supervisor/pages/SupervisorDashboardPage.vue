@@ -89,7 +89,10 @@
 
     <ServerHealthStrip
       :host="selectedHostConfig"
-      :snapshot="serverHealth"
+      :overview="overview"
+      :loading="overviewLoading"
+      :refreshing="overviewRefreshing"
+      :error="overviewError"
       @refresh="handleRefreshHealth"
     />
 
@@ -357,7 +360,7 @@ import ServerHealthStrip from '@/features/supervisor/components/ServerHealthStri
 import ServiceDetailDrawer from '@/features/supervisor/components/ServiceDetailDrawer.vue';
 import ServiceFormDialog from '@/features/supervisor/components/ServiceFormDialog.vue';
 import StatusTag from '@/features/supervisor/components/StatusTag.vue';
-import { useMockServerHealth } from '@/features/supervisor/composables/useMockServerHealth';
+import { useSupervisorOverview } from '@/features/supervisor/composables/useSupervisorOverview';
 import { createEditDraft, createEmptyServiceDraft } from '@/features/supervisor/utils/serviceDraft';
 
 interface ResultPanelState {
@@ -393,7 +396,13 @@ const actionLoading = reactive<Record<string, string | null>>({});
 
 const enabledHosts = computed(() => hosts.value.filter((h) => h.enabled));
 const selectedHostConfig = computed(() => hosts.value.find((h) => h.ip === selectedHost.value) || null);
-const { snapshot: serverHealth, refresh: refreshServerHealth } = useMockServerHealth(selectedHost);
+const {
+  overview,
+  loading: overviewLoading,
+  refreshing: overviewRefreshing,
+  error: overviewError,
+  refresh: refreshOverview,
+} = useSupervisorOverview(selectedHost);
 
 const metrics = computed(() => ({
   hosts: hosts.value.length,
@@ -552,9 +561,11 @@ function onPageSizeChange(size: number) {
   void loadServices();
 }
 
-function handleRefreshHealth() {
-  refreshServerHealth();
-  ElMessage.success('服务器概况已刷新');
+async function handleRefreshHealth() {
+  const result = await refreshOverview(true);
+  if (result?.success) {
+    ElMessage.success('服务器概况已更新');
+  }
 }
 
 async function handleRefreshStatus() {

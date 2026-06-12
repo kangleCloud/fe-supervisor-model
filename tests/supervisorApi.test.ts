@@ -13,6 +13,7 @@ import {
   createService,
   deleteService,
   getServiceDetail,
+  getSupervisorOverview,
   importServices,
   listHosts,
   listServices,
@@ -35,6 +36,18 @@ describe('supervisorApi URLs', () => {
     await listHosts();
     expect(mockRequest).toHaveBeenCalledWith(
       expect.objectContaining({ url: '/admin/api/supervisor/hosts' }),
+    );
+  });
+
+  it('getSupervisorOverview uses /admin/api/supervisor/overview with host query params', async () => {
+    mockRequest.mockResolvedValue({});
+    await getSupervisorOverview('10.1.0.104');
+    expect(mockRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: '/admin/api/supervisor/overview',
+        method: 'get',
+        params: { host: '10.1.0.104' },
+      }),
     );
   });
 
