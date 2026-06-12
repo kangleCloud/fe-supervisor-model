@@ -11,6 +11,10 @@
         目标主机：<strong>{{ host }}</strong>
       </p>
 
+      <p v-if="!report" class="import-dialog__empty">
+        {{ internalLoading ? '正在恢复最近一次预检结果...' : '暂无预检暂存结果，可直接执行预检导入。' }}
+      </p>
+
       <el-alert
         v-if="report?.summary.skipped"
         title="存在跳过项"
@@ -26,7 +30,10 @@
           <div class="page__section-header">
             <div>
               <h3 class="page__section-title">导入汇总</h3>
-              <p class="page__section-subtitle">当前批次：{{ report.batchId }}</p>
+              <p class="page__section-subtitle">
+                当前批次：{{ report.batchId }}
+                <template v-if="stagingCreatedAt"> · 最近预检：{{ stagingCreatedAt }}</template>
+              </p>
             </div>
           </div>
           <div class="import-dialog__summary">
@@ -112,7 +119,8 @@ import { View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, ref, watch } from 'vue';
 
-import { importServices } from '@/api/supervisor/supervisorApi';
+import { ApiError } from '@/api/http/types';
+import { getImportStaging, importServices } from '@/api/supervisor/supervisorApi';
 import type { ImportReport } from '@/api/supervisor/supervisor.types';
 import ImportResultTag from '@/features/supervisor/components/ImportResultTag.vue';
 
@@ -128,7 +136,9 @@ const emit = defineEmits<{
 
 const report = ref<ImportReport | null>(null);
 const batchId = ref('');
+const stagingCreatedAt = ref<string | null>(null);
 const internalLoading = ref(false);
+let stagingRequestId = 0;
 
 const canCommit = computed(() => (
   report.value?.mode === 'PRECHECK'
@@ -138,10 +148,27 @@ const canCommit = computed(() => (
 ));
 
 watch(
-  () => props.host,
-  () => {
-    resetState();
+  () => [props.modelValue, props.host] as const,
+  async ([visible, host], previousValue) => {
+    const [previousVisible, previousHost] = previousValue ?? [false, ''];
+
+    if (!visible) {
+      invalidateStagingRecovery();
+      resetState();
+      return;
+    }
+
+    if (!host) {
+      invalidateStagingRecovery();
+      resetState();
+      return;
+    }
+
+    if (!previousVisible || host !== previousHost) {
+      await loadStaging(host);
+    }
   },
+  { immediate: true },
 );
 
 async function handlePrecheck() {
@@ -150,6 +177,7 @@ async function handlePrecheck() {
   try {
     report.value = await importServices({ host: props.host, mode: 'PRECHECK' });
     batchId.value = report.value.batchId;
+    stagingCreatedAt.value = null;
     ElMessage.success(`预检完成，共 ${report.value.summary.planned} 个文件待导入`);
   } catch (error) {
     handleError(error, '预检失败');
@@ -186,26 +214,89 @@ async function handleCommit() {
 
   try {
     report.value = await importServices({ host: props.host, mode: 'COMMIT', batchId: batchId.value });
+    stagingCreatedAt.value = null;
     ElMessage.success('导入成功');
     emit('done');
   } catch (error) {
+    if (error instanceof ApiError && error.status === 409) {
+      resetState();
+    }
     handleError(error, '导入失败');
   } finally {
     internalLoading.value = false;
   }
 }
 
+async function loadStaging(host: string) {
+  const requestId = ++stagingRequestId;
+  resetState();
+  internalLoading.value = true;
+
+  try {
+    const staging = await getImportStaging(host);
+
+    if (requestId !== stagingRequestId) {
+      return;
+    }
+
+    if (!staging.exists || !staging.batchId) {
+      return;
+    }
+
+    report.value = {
+      host: staging.host,
+      mode: 'PRECHECK',
+      batchId: staging.batchId,
+      summary: staging.summary,
+      items: staging.items,
+    };
+    batchId.value = staging.batchId;
+    stagingCreatedAt.value = staging.createdAt;
+  } catch (error) {
+    if (requestId !== stagingRequestId) {
+      return;
+    }
+    handleError(error, '读取暂存失败');
+  } finally {
+    if (requestId === stagingRequestId) {
+      internalLoading.value = false;
+    }
+  }
+}
+
+function invalidateStagingRecovery() {
+  stagingRequestId += 1;
+  internalLoading.value = false;
+}
+
 function resetState() {
   report.value = null;
   batchId.value = '';
+  stagingCreatedAt.value = null;
 }
 
 function handleClose() {
+  invalidateStagingRecovery();
   resetState();
   emit('update:modelValue', false);
 }
 
 function handleError(error: unknown, fallbackMessage: string) {
+  if (error instanceof ApiError) {
+    if (error.status === 400) {
+      ElMessage.error('请求参数非法');
+      return;
+    }
+    if (error.status === 404) {
+      ElMessage.error(error.message || '目标主机不可达');
+      return;
+    }
+    if (error.status === 409) {
+      ElMessage.warning('当前批次已失效或存在跳过项，请重新预检');
+      return;
+    }
+  }
+
   const message = error instanceof Error ? error.message : fallbackMessage;
   ElMessage.error(message || fallbackMessage);
 }
@@ -220,6 +311,16 @@ function handleError(error: unknown, fallbackMessage: string) {
 
 .import-dialog__alert {
   margin-bottom: 16px;
+}
+
+.import-dialog__empty {
+  margin: 0;
+  padding: 16px;
+  border: 1px dashed var(--surface-strong);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 14px;
 }
 
 .import-dialog__result {

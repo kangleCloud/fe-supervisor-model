@@ -354,7 +354,11 @@ function mountPage() {
           template: '<div><slot /></div>',
         },
         EmptyState: EmptyStateStub,
-        ImportDialog: true,
+        ImportDialog: defineComponent({
+          name: 'ImportDialog',
+          emits: ['done', 'update:modelValue'],
+          template: '<div class="import-dialog-stub"><button data-testid="import-done" @click="$emit(\'done\')">导入完成</button></div>',
+        }),
         OperationResultPanel: true,
         ManageModeTag: ManageModeTagStub,
         ServerHealthStrip: defineComponent({
@@ -934,5 +938,22 @@ describe('SupervisorDashboardPage', () => {
     await flushPromises();
 
     expect(mockStopService).toHaveBeenCalledWith('127.0.0.1', 'demo_member');
+  });
+
+  it('refreshes list and open detail when import is done', async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="action-detail"]').trigger('click');
+    await flushPromises();
+
+    mockListServices.mockClear();
+    mockGetServiceDetail.mockClear();
+
+    await wrapper.get('[data-testid="import-done"]').trigger('click');
+    await flushPromises();
+
+    expect(mockListServices).toHaveBeenCalledTimes(1);
+    expect(mockGetServiceDetail).toHaveBeenCalledWith('127.0.0.1', 'demo_member');
   });
 });

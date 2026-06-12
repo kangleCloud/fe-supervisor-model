@@ -791,6 +791,9 @@ function openImportDialog() {
 async function handleImportDone() {
   importVisible.value = false;
   await loadServices();
+  if (detailVisible.value && currentDetail.value) {
+    await refreshDetail(currentDetail.value.programName);
+  }
 }
 
 function handleError(error: unknown, fallbackMessage: string) {

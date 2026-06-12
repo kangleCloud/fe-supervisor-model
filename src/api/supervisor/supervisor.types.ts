@@ -165,6 +165,15 @@ export interface ImportReport {
   items: ImportItem[];
 }
 
+export interface ImportStagingResponse {
+  host: string;
+  exists: boolean;
+  batchId: string | null;
+  createdAt: string | null;
+  summary: ImportSummary;
+  items: ImportItem[];
+}
+
 export type SupervisorOverviewConnectionState = 'CONNECTED' | 'UNREACHABLE' | 'UNSUPPORTED';
 
 export interface SupervisorOverviewCpu {

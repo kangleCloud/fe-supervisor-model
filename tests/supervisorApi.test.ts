@@ -12,6 +12,7 @@ import {
   archiveService,
   createService,
   deleteService,
+  getImportStaging,
   getServiceDetail,
   getSupervisorOverview,
   importServices,
@@ -114,6 +115,25 @@ describe('supervisorApi URLs', () => {
       expect.objectContaining({
         url: '/admin/api/supervisor/imports',
         data: { host: 'host-1', mode: 'PRECHECK' },
+      }),
+    );
+  });
+
+  it('getImportStaging uses /admin/api/supervisor/imports/staging with host query params', async () => {
+    mockRequest.mockResolvedValue({
+      host: 'host-1',
+      exists: false,
+      batchId: null,
+      createdAt: null,
+      summary: { planned: 0, imported: 0, updated: 0, skipped: 0 },
+      items: [],
+    });
+    await getImportStaging('host-1');
+    expect(mockRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: '/admin/api/supervisor/imports/staging',
+        method: 'get',
+        params: { host: 'host-1' },
       }),
     );
   });

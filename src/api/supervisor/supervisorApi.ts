@@ -6,6 +6,7 @@ import type {
   CommandStep,
   ImportMode,
   ImportReport,
+  ImportStagingResponse,
   OperationCommandPayload,
   PagedServiceResponse,
   RuntimeActionResponse,
@@ -151,6 +152,20 @@ interface RawImportReport {
   host: string;
   mode: ImportMode;
   batchId: string;
+  summary: {
+    planned: number;
+    imported: number;
+    updated: number;
+    skipped: number;
+  };
+  items: RawImportItem[];
+}
+
+interface RawImportStagingResponse {
+  host: string;
+  exists: boolean;
+  batchId: string | null;
+  createdAt: string | null;
   summary: {
     planned: number;
     imported: number;
@@ -343,6 +358,35 @@ function normalizeImportReport(report: RawImportReport): ImportReport {
     batchId: report.batchId,
     summary: report.summary,
     items: report.items.map((item) => ({
+      configPath: item.configPath,
+      fileName: item.fileName,
+      programName: item.programName || item.contentProgramName,
+      jobName: item.jobName,
+      moduleName: item.moduleName,
+      javaPath: item.javaPath,
+      active: item.active,
+      port: item.port,
+      jarName: item.jarName,
+      xms: item.xms,
+      xmx: item.xmx,
+      user: item.user,
+      manageMode: item.manageMode,
+      metadataComplete: item.metadataComplete,
+      parseWarnings: item.parseWarnings || [],
+      result: item.result,
+      message: item.message,
+    })),
+  };
+}
+
+function normalizeImportStagingResponse(response: RawImportStagingResponse): ImportStagingResponse {
+  return {
+    host: response.host,
+    exists: response.exists,
+    batchId: response.batchId,
+    createdAt: response.createdAt,
+    summary: response.summary,
+    items: response.items.map((item) => ({
       configPath: item.configPath,
       fileName: item.fileName,
       programName: item.programName || item.contentProgramName,
@@ -590,6 +634,16 @@ export async function importServices(payload: { host: string; mode: ImportMode; 
   });
 
   return normalizeImportReport(response);
+}
+
+export async function getImportStaging(host: string) {
+  const response = await request<RawImportStagingResponse>({
+    method: 'get',
+    url: `${SUPERVISOR}/imports/staging`,
+    params: { host },
+  });
+
+  return normalizeImportStagingResponse(response);
 }
 
 export function refreshServiceStatus(host: string) {
