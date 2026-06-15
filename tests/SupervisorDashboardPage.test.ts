@@ -293,6 +293,57 @@ const ManageModeTagStub = defineComponent({
   template: '<span class="manage-mode-tag-stub">{{ mode }}</span>',
 });
 
+const OperationResultPanelStub = defineComponent({
+  name: 'OperationResultPanel',
+  props: ['syncedFields', 'warnings', 'commandResults'],
+  emits: ['close'],
+  template: `
+    <div class="operation-result-panel-stub">
+      <div class="operation-result-panel-warnings">{{ warnings?.join('|') }}</div>
+      <div class="operation-result-panel-command-results">{{ JSON.stringify(commandResults) }}</div>
+    </div>
+  `,
+});
+
+const ServiceDetailDrawerStub = defineComponent({
+  name: 'ServiceDetailDrawer',
+  props: ['modelValue', 'detail', 'loading', 'lifecycleActionLoading'],
+  emits: ['sync', 'archive', 'restore', 'delete', 'update:modelValue'],
+  template: `
+    <div v-if="modelValue && detail" class="service-detail-drawer-stub">
+      <div class="service-detail-program">{{ detail.programName }}</div>
+      <button
+        v-if="!detail.isArchived"
+        data-testid="detail-sync"
+        @click="$emit('sync', detail)"
+      >
+        同步现场
+      </button>
+      <button
+        v-if="!detail.isArchived"
+        data-testid="detail-archive"
+        @click="$emit('archive', detail)"
+      >
+        归档
+      </button>
+      <button
+        v-if="detail.isArchived"
+        data-testid="detail-restore"
+        @click="$emit('restore', detail)"
+      >
+        还原
+      </button>
+      <button
+        v-if="detail.isArchived"
+        data-testid="detail-delete"
+        @click="$emit('delete', detail)"
+      >
+        删除
+      </button>
+    </div>
+  `,
+});
+
 function mountPage() {
   return mount(SupervisorDashboardPage, {
     global: {
@@ -359,14 +410,14 @@ function mountPage() {
           emits: ['done', 'update:modelValue'],
           template: '<div class="import-dialog-stub"><button data-testid="import-done" @click="$emit(\'done\')">导入完成</button></div>',
         }),
-        OperationResultPanel: true,
+        OperationResultPanel: OperationResultPanelStub,
         ManageModeTag: ManageModeTagStub,
         ServerHealthStrip: defineComponent({
           props: ['overview', 'loading', 'refreshing', 'error'],
           emits: ['refresh'],
           template: '<div class="server-health-strip-stub">{{ overview?.connectionState }} {{ overview?.cpu.usagePercent }} {{ overview?.memory.usedText }} {{ overview?.collectedAt }} {{ error }} {{ overview?.warnings?.join("|") }} <button data-testid="refresh-health" @click="$emit(\'refresh\')">刷新概况</button></div>',
         }),
-        ServiceDetailDrawer: true,
+        ServiceDetailDrawer: ServiceDetailDrawerStub,
         ServiceFormDialog: true,
         StatusTag: StatusTagStub,
       },
@@ -561,7 +612,21 @@ describe('SupervisorDashboardPage', () => {
       missing: 0,
     });
     mockArchiveService.mockResolvedValue({ commandResult: {}, fileResult: {} });
-    mockDeleteService.mockResolvedValue({ commandResults: {} });
+    mockDeleteService.mockResolvedValue({
+      host: '127.0.0.1',
+      programName: 'demo_member',
+      deletedRecordId: 1,
+      deletedConfigPath: 'demo_member.ini',
+      deletedRemotePaths: ['/etc/supervisor/conf.d/demo_member.ini'],
+      remoteCleanupStatus: 'CLEANED',
+      warnings: ['远端日志目录未删除'],
+      commandResults: {
+        deleteRemote: {
+          exitCode: 0,
+          stdout: 'removed /etc/supervisor/conf.d/demo_member.ini',
+        },
+      },
+    });
     mockRestartService.mockResolvedValue({ commandResult: {} });
     mockRestoreService.mockResolvedValue({ commandResult: {}, fileResult: {} });
     mockStartService.mockResolvedValue({ commandResult: {} });
@@ -835,18 +900,29 @@ describe('SupervisorDashboardPage', () => {
     expect(wrapper.find('[data-testid="action-start"]').exists()).toBe(true);
   });
 
-  it('renders archived row with only detail and restore buttons', async () => {
+  it('renders archived row with only detail button', async () => {
     mockListServices.mockResolvedValue(archivedPagedResponse);
 
     const wrapper = mountPage();
     await flushPromises();
 
     expect(wrapper.find('[data-testid="action-detail"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="action-restore"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="action-sync"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="action-start"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="action-stop"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="action-restart"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="action-edit"]').exists()).toBe(false);
+  });
+
+  it('does not render archive, restore, or delete actions in list rows', async () => {
+    mockListServices.mockResolvedValue(mixedPagedResponse);
+
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="action-archive"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="action-restore"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="action-delete"]').exists()).toBe(false);
   });
 
   it('calls syncService when sync button is clicked', async () => {
@@ -862,48 +938,127 @@ describe('SupervisorDashboardPage', () => {
     expect(mockSyncService).toHaveBeenCalledWith('127.0.0.1', 'demo_member');
   });
 
-  it('calls ElMessageBox.confirm before archive action', async () => {
-    mockListServices.mockResolvedValue(mixedPagedResponse);
+  it('archives service from detail drawer and refreshes list and detail', async () => {
+    mockGetServiceDetail
+      .mockResolvedValueOnce(detailResponse)
+      .mockResolvedValueOnce({
+        ...detailResponse,
+        isArchived: true,
+        archivedAt: '2026-06-12 10:00:00',
+        status: 'STOPPED',
+      });
 
     const wrapper = mountPage();
     await flushPromises();
 
-    const archiveBtn = wrapper.find('[data-testid="action-archive"]');
-    expect(archiveBtn.exists()).toBe(true);
-    await archiveBtn.trigger('click');
+    await wrapper.get('[data-testid="action-detail"]').trigger('click');
+    await flushPromises();
+
+    mockArchiveService.mockClear();
+    mockListServices.mockClear();
+    mockGetServiceDetail.mockClear();
+    mockMessageBoxConfirm.mockClear();
+
+    await wrapper.get('[data-testid="detail-archive"]').trigger('click');
     await flushPromises();
 
     expect(mockMessageBoxConfirm).toHaveBeenCalled();
-    expect(mockArchiveService).toHaveBeenCalled();
+    expect(mockArchiveService).toHaveBeenCalledWith('127.0.0.1', 'demo_member');
+    expect(mockListServices).toHaveBeenCalledTimes(1);
+    expect(mockGetServiceDetail).toHaveBeenCalledWith('127.0.0.1', 'demo_member');
+    expect(wrapper.find('[data-testid="detail-archive"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="detail-restore"]').exists()).toBe(true);
   });
 
-  it('calls ElMessageBox.confirm before restore action', async () => {
+  it('restores service from detail drawer and refreshes list and detail', async () => {
     mockListServices.mockResolvedValue(archivedPagedResponse);
+    mockGetServiceDetail
+      .mockResolvedValueOnce({
+        ...detailResponse,
+        programName: 'archived_app',
+        isArchived: true,
+        archivedAt: '2026-06-09 10:00:00',
+        status: 'STOPPED',
+      })
+      .mockResolvedValueOnce({
+        ...detailResponse,
+        programName: 'archived_app',
+        isArchived: false,
+        archivedAt: null,
+        restoredAt: '2026-06-12 10:30:00',
+        status: 'STOPPED',
+      });
 
     const wrapper = mountPage();
     await flushPromises();
 
-    const restoreBtn = wrapper.find('[data-testid="action-restore"]');
-    expect(restoreBtn.exists()).toBe(true);
+    await wrapper.get('[data-testid="action-detail"]').trigger('click');
+    await flushPromises();
 
-    await restoreBtn.trigger('click');
+    mockRestoreService.mockClear();
+    mockListServices.mockClear();
+    mockGetServiceDetail.mockClear();
+    mockMessageBoxConfirm.mockClear();
+
+    await wrapper.get('[data-testid="detail-restore"]').trigger('click');
     await flushPromises();
 
     expect(mockMessageBoxConfirm).toHaveBeenCalled();
-    expect(mockRestoreService).toHaveBeenCalled();
+    expect(mockRestoreService).toHaveBeenCalledWith('127.0.0.1', 'archived_app');
+    expect(mockListServices).toHaveBeenCalledTimes(1);
+    expect(mockGetServiceDetail).toHaveBeenCalledWith('127.0.0.1', 'archived_app');
+    expect(wrapper.find('[data-testid="detail-restore"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="detail-archive"]').exists()).toBe(true);
   });
 
-  it('calls ElMessageBox.confirm before delete action', async () => {
+  it('deletes archived service from detail drawer, closes detail, refreshes list, and shows cleanup summary', async () => {
+    mockListServices.mockResolvedValue(archivedPagedResponse);
+    mockGetServiceDetail.mockResolvedValue({
+      ...detailResponse,
+      programName: 'archived_app',
+      isArchived: true,
+      archivedAt: '2026-06-09 10:00:00',
+      status: 'STOPPED',
+    });
+    mockDeleteService.mockResolvedValue({
+      host: '127.0.0.1',
+      programName: 'archived_app',
+      deletedRecordId: 2,
+      deletedConfigPath: 'archived_app.ini',
+      deletedRemotePaths: ['/etc/supervisor/conf.d/archived_app.ini'],
+      remoteCleanupStatus: 'CLEANED',
+      warnings: ['远端日志目录未删除'],
+      commandResults: {
+        deleteRemote: {
+          exitCode: 0,
+          stdout: 'removed /etc/supervisor/conf.d/archived_app.ini',
+        },
+      },
+    });
+
     const wrapper = mountPage();
     await flushPromises();
 
-    const deleteBtn = wrapper.find('[data-testid="action-delete"]');
-    expect(deleteBtn.exists()).toBe(true);
-    await deleteBtn.trigger('click');
+    await wrapper.get('[data-testid="action-detail"]').trigger('click');
+    await flushPromises();
+
+    mockDeleteService.mockClear();
+    mockListServices.mockClear();
+    mockGetServiceDetail.mockClear();
+    mockMessageBoxConfirm.mockClear();
+
+    await wrapper.get('[data-testid="detail-delete"]').trigger('click');
     await flushPromises();
 
     expect(mockMessageBoxConfirm).toHaveBeenCalled();
-    expect(mockDeleteService).toHaveBeenCalled();
+    expect(mockDeleteService).toHaveBeenCalledWith('127.0.0.1', 'archived_app');
+    expect(mockListServices).toHaveBeenCalledTimes(1);
+    expect(mockGetServiceDetail).not.toHaveBeenCalled();
+    expect(wrapper.find('[data-testid="detail-delete"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain('远端日志目录未删除');
+    expect(wrapper.text()).toContain('remoteCleanupStatus');
+    expect(wrapper.text()).toContain('CLEANED');
+    expect(wrapper.text()).toContain('/etc/supervisor/conf.d/archived_app.ini');
   });
 
   it('starts service when start button is clicked on STOPPED row', async () => {

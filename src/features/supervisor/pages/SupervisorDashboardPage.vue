@@ -177,16 +177,6 @@
                 <el-tooltip content="详情">
                   <el-button circle plain :icon="View" size="small" data-testid="action-detail" @click="openDetail(row.programName)" />
                 </el-tooltip>
-                <el-tooltip content="还原">
-                  <el-button
-                    circle
-                    plain
-                    :icon="RefreshLeft"
-                    size="small"
-                    data-testid="action-restore"
-                    @click="handleAction('restore', row)"
-                  />
-                </el-tooltip>
               </div>
               <div v-else class="dashboard__row-actions">
                 <el-tooltip content="详情">
@@ -240,16 +230,16 @@
                     />
                   </el-tooltip>
                 </template>
-                <el-dropdown trigger="click" @command="(cmd: string) => handleDropdownAction(cmd, row)">
-                  <el-button circle plain :icon="MoreFilled" size="small" />
-                  <template #dropdown>
-                    <el-dropdown-menu>
-                      <el-dropdown-item command="edit" :icon="EditPen" data-testid="action-edit">编辑</el-dropdown-item>
-                      <el-dropdown-item command="archive" :icon="Box" data-testid="action-archive">归档</el-dropdown-item>
-                      <el-dropdown-item command="delete" :icon="Delete" data-testid="action-delete" divided>删除</el-dropdown-item>
-                    </el-dropdown-menu>
-                  </template>
-                </el-dropdown>
+                <el-tooltip content="编辑">
+                  <el-button
+                    circle
+                    plain
+                    :icon="EditPen"
+                    size="small"
+                    data-testid="action-edit"
+                    @click="openEditDialog(row)"
+                  />
+                </el-tooltip>
               </div>
             </template>
           </el-table-column>
@@ -281,6 +271,10 @@
       v-model="detailVisible"
       :detail="currentDetail"
       :loading="loadingDetail"
+      :lifecycle-action-loading="currentDetailLifecycleAction"
+      @archive="onDetailLifecycleAction('archive', $event)"
+      @restore="onDetailLifecycleAction('restore', $event)"
+      @delete="onDetailLifecycleAction('delete', $event)"
       @sync="onDetailSync"
     />
 
@@ -311,12 +305,9 @@
 <script setup lang="ts">
 import {
   Box,
-  Delete,
   EditPen,
-  MoreFilled,
   Plus,
   Refresh,
-  RefreshLeft,
   RefreshRight,
   Search,
   Upload,
@@ -344,8 +335,10 @@ import {
 } from '@/api/supervisor/supervisorApi';
 import type {
   ArchivedFilter,
+  CommandResultCollection,
   OperationCommandPayload,
   ServiceCreatePayload,
+  ServiceDeleteResponse,
   ServiceListRecord,
   ServiceUpdatePayload,
   SupervisorHost,
@@ -368,6 +361,11 @@ interface ResultPanelState {
   warnings?: string[];
   commandResults?: OperationCommandPayload;
 }
+
+type LifecycleAction = 'archive' | 'restore' | 'delete';
+type RuntimeAction = 'start' | 'stop' | 'restart';
+type ServiceAction = RuntimeAction | LifecycleAction;
+type ServiceActionTarget = Pick<ServiceListRecord, 'programName'>;
 
 const hosts = ref<SupervisorHost[]>([]);
 const serviceRecords = ref<ServiceListRecord[]>([]);
@@ -396,6 +394,14 @@ const actionLoading = reactive<Record<string, string | null>>({});
 
 const enabledHosts = computed(() => hosts.value.filter((h) => h.enabled));
 const selectedHostConfig = computed(() => hosts.value.find((h) => h.ip === selectedHost.value) || null);
+const currentDetailLifecycleAction = computed<LifecycleAction | null>(() => {
+  if (!currentDetail.value) {
+    return null;
+  }
+
+  const action = actionLoading[currentDetail.value.programName];
+  return action === 'archive' || action === 'restore' || action === 'delete' ? action : null;
+});
 const {
   overview,
   loading: overviewLoading,
@@ -438,6 +444,22 @@ function mergeCommandResults(...groups: Array<OperationCommandPayload | undefine
     }
     return { ...accumulator, ...group };
   }, {});
+}
+
+function buildDeleteResultPanel(result: ServiceDeleteResponse): ResultPanelState {
+  const deleteSummary: CommandResultCollection = {
+    deleteSummary: {
+      deletedRecordId: result.deletedRecordId,
+      deletedConfigPath: result.deletedConfigPath,
+      deletedRemotePaths: result.deletedRemotePaths.join(', ') || '-',
+      remoteCleanupStatus: result.remoteCleanupStatus,
+    },
+  };
+
+  return {
+    warnings: result.warnings,
+    commandResults: mergeCommandResults(deleteSummary, result.commandResults) as OperationCommandPayload,
+  };
 }
 
 function setResultPanel(result: ResultPanelState | null) {
@@ -650,26 +672,23 @@ async function handleFormSubmit(payload: ServiceCreatePayload | ServiceUpdatePay
   }
 }
 
-async function handleAction(
-  action: 'start' | 'stop' | 'restart' | 'archive' | 'restore' | 'delete',
-  row: ServiceListRecord,
-) {
+async function handleAction(action: ServiceAction, target: ServiceActionTarget) {
   if (action === 'delete' || action === 'archive' || action === 'restore') {
     const confirmMessages: Record<string, { message: string; title: string; type: 'warning' | 'info'; confirmText: string }> = {
       delete: {
-        message: `确认删除服务 ${row.programName} 吗？`,
+        message: `确认删除服务 ${target.programName} 吗？`,
         title: '删除确认',
         type: 'warning',
         confirmText: '删除',
       },
       archive: {
-        message: `确认归档服务 ${row.programName} 吗？归档后服务不可被纳管操作。`,
+        message: `确认归档服务 ${target.programName} 吗？归档后服务不可被纳管操作。`,
         title: '归档确认',
         type: 'warning',
         confirmText: '归档',
       },
       restore: {
-        message: `确认还原服务 ${row.programName} 吗？`,
+        message: `确认还原服务 ${target.programName} 吗？`,
         title: '还原确认',
         type: 'info',
         confirmText: '还原',
@@ -687,47 +706,47 @@ async function handleAction(
     }
   }
 
-  actionLoading[row.programName] = action;
+  actionLoading[target.programName] = action;
 
   try {
     const host = selectedHost.value;
 
     switch (action) {
       case 'start': {
-        const result = await startService(host, row.programName);
+        const result = await startService(host, target.programName);
         setResultPanel({ commandResults: result.commandResult });
         ElMessage.success('启动命令已执行');
         break;
       }
       case 'stop': {
-        const result = await stopService(host, row.programName);
+        const result = await stopService(host, target.programName);
         setResultPanel({ commandResults: result.commandResult });
         ElMessage.success('停止命令已执行');
         break;
       }
       case 'restart': {
-        const result = await restartService(host, row.programName);
+        const result = await restartService(host, target.programName);
         setResultPanel({ commandResults: result.commandResult });
         ElMessage.success('重启命令已执行');
         break;
       }
       case 'archive': {
-        const result = await archiveService(host, row.programName);
+        const result = await archiveService(host, target.programName);
         setResultPanel({ commandResults: mergeCommandResults(result.commandResult, result.fileResult) as OperationCommandPayload });
         ElMessage.success('归档成功');
         break;
       }
       case 'restore': {
-        const result = await restoreService(host, row.programName);
+        const result = await restoreService(host, target.programName);
         setResultPanel({ commandResults: mergeCommandResults(result.commandResult, result.fileResult) as OperationCommandPayload });
         ElMessage.success('还原成功');
         break;
       }
       case 'delete': {
-        const result = await deleteService(host, row.programName);
-        setResultPanel({ commandResults: result.commandResults });
+        const result = await deleteService(host, target.programName);
+        setResultPanel(buildDeleteResultPanel(result));
         ElMessage.success('删除成功');
-        if (currentDetail.value?.programName === row.programName) {
+        if (currentDetail.value?.programName === target.programName) {
           detailVisible.value = false;
           currentDetail.value = null;
         }
@@ -739,21 +758,13 @@ async function handleAction(
 
     await loadServices();
 
-    if (detailVisible.value && currentDetail.value?.programName === row.programName && action !== 'delete') {
+    if (detailVisible.value && currentDetail.value?.programName === target.programName && action !== 'delete') {
       await refreshDetail();
     }
   } catch (error) {
     handleError(error, `${action} 执行失败`);
   } finally {
-    delete actionLoading[row.programName];
-  }
-}
-
-function handleDropdownAction(cmd: string, row: ServiceListRecord) {
-  if (cmd === 'edit') {
-    openEditDialog(row);
-  } else if (cmd === 'archive' || cmd === 'delete') {
-    void handleAction(cmd, row);
+    delete actionLoading[target.programName];
   }
 }
 
@@ -782,6 +793,10 @@ async function handleSyncRow(row: ServiceListRecord) {
 async function onDetailSync(detail: SupervisorServiceDetail) {
   await loadServices();
   await refreshDetail(detail.programName);
+}
+
+async function onDetailLifecycleAction(action: LifecycleAction, detail: SupervisorServiceDetail) {
+  await handleAction(action, { programName: detail.programName });
 }
 
 function openImportDialog() {

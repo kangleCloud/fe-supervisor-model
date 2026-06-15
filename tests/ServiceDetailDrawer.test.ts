@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ServiceDetailDrawer from '@/features/supervisor/components/ServiceDetailDrawer.vue';
 import type { SupervisorServiceDetail } from '@/api/supervisor/supervisor.types';
@@ -56,7 +56,12 @@ const detail: SupervisorServiceDetail = {
   updatedAt: '2026-06-10 12:00:00',
 };
 
-function mountDrawer(props: { modelValue: boolean; loading: boolean; detail: typeof detail | null }) {
+function mountDrawer(props: {
+  modelValue: boolean;
+  loading: boolean;
+  detail: typeof detail | null;
+  lifecycleActionLoading?: 'archive' | 'restore' | 'delete' | null;
+}) {
   return mount(ServiceDetailDrawer, {
     props,
     global: {
@@ -93,6 +98,10 @@ function mountDrawer(props: { modelValue: boolean; loading: boolean; detail: typ
 }
 
 describe('ServiceDetailDrawer', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('renders database snapshot fields', () => {
     const wrapper = mountDrawer({
       modelValue: true,
@@ -144,34 +153,41 @@ describe('ServiceDetailDrawer', () => {
     expect(wrapper.text()).toContain('Connection refused');
   });
 
-  it('shows read-only archived alert when detail is archived', () => {
+  it('shows archived alert when detail is archived', () => {
     const wrapper = mountDrawer({
       modelValue: true,
       loading: false,
       detail: { ...detail, isArchived: true },
     });
 
-    expect(wrapper.text()).toContain('只读归档');
+    expect(wrapper.text()).toContain('归档服务');
+    expect(wrapper.text()).toContain('运行与同步类动作已禁用');
   });
 
-  it('hides sync button when detail is archived', () => {
+  it('shows restore and delete actions when detail is archived', () => {
     const wrapper = mountDrawer({
       modelValue: true,
       loading: false,
       detail: { ...detail, isArchived: true },
     });
 
-    expect(wrapper.text()).not.toContain('同步现场');
+    expect(wrapper.find('[data-testid="detail-action-sync"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="detail-action-archive"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="detail-action-restore"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="detail-action-delete"]').exists()).toBe(true);
   });
 
-  it('shows sync button when detail is not archived', () => {
+  it('shows sync and archive actions when detail is not archived', () => {
     const wrapper = mountDrawer({
       modelValue: true,
       loading: false,
       detail,
     });
 
-    expect(wrapper.text()).toContain('同步现场');
+    expect(wrapper.find('[data-testid="detail-action-sync"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="detail-action-archive"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="detail-action-restore"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="detail-action-delete"]').exists()).toBe(false);
   });
 
   it('shows archived and restored timestamps in basic info section', () => {
@@ -218,5 +234,51 @@ describe('ServiceDetailDrawer', () => {
 
     expect(mockSyncService).toHaveBeenCalledWith('127.0.0.1', 'demo_member');
     expect(wrapper.emitted('sync')).toBeTruthy();
+  });
+
+  it('emits archive event without calling extra api', async () => {
+    const wrapper = mountDrawer({
+      modelValue: true,
+      loading: false,
+      detail,
+    });
+
+    const archiveButton = wrapper.findAll('button').find((button) => button.text() === '归档');
+    expect(archiveButton).toBeDefined();
+
+    await archiveButton!.trigger('click');
+
+    expect(wrapper.emitted('archive')).toBeTruthy();
+    expect(mockSyncService).not.toHaveBeenCalled();
+  });
+
+  it('emits restore event for archived detail', async () => {
+    const wrapper = mountDrawer({
+      modelValue: true,
+      loading: false,
+      detail: { ...detail, isArchived: true },
+    });
+
+    const restoreButton = wrapper.findAll('button').find((button) => button.text() === '还原');
+    expect(restoreButton).toBeDefined();
+
+    await restoreButton!.trigger('click');
+
+    expect(wrapper.emitted('restore')).toBeTruthy();
+  });
+
+  it('emits delete event for archived detail', async () => {
+    const wrapper = mountDrawer({
+      modelValue: true,
+      loading: false,
+      detail: { ...detail, isArchived: true },
+    });
+
+    const deleteButton = wrapper.findAll('button').find((button) => button.text() === '删除');
+    expect(deleteButton).toBeDefined();
+
+    await deleteButton!.trigger('click');
+
+    expect(wrapper.emitted('delete')).toBeTruthy();
   });
 });

@@ -257,15 +257,23 @@ describe('supervisorApi URLs', () => {
     );
   });
 
-  it('deleteService uses DELETE /services/:name with host param', async () => {
+  it('deleteService uses DELETE /services/:name with host param and returns cleanup fields', async () => {
     mockRequest.mockResolvedValue({
       host: 'host-1',
       contentProgramName: 'my-app',
+      deletedRecordId: 11,
       deletedConfigPath: 'my-app.ini',
-      backupPath: 'my-app.ini.bak',
-      commandResults: {},
+      deletedRemotePaths: ['/etc/supervisor/conf.d/my-app.ini'],
+      remoteCleanupStatus: 'CLEANED',
+      warnings: ['log dir kept'],
+      commandResults: {
+        deleteRemote: {
+          exitCode: 0,
+          stdout: 'removed /etc/supervisor/conf.d/my-app.ini',
+        },
+      },
     });
-    await deleteService('host-1', 'my-app');
+    const result = await deleteService('host-1', 'my-app');
     expect(mockRequest).toHaveBeenCalledWith(
       expect.objectContaining({
         url: '/admin/api/supervisor/services/my-app',
@@ -273,6 +281,21 @@ describe('supervisorApi URLs', () => {
         params: { host: 'host-1' },
       }),
     );
+    expect(result).toEqual({
+      host: 'host-1',
+      programName: 'my-app',
+      deletedRecordId: 11,
+      deletedConfigPath: 'my-app.ini',
+      deletedRemotePaths: ['/etc/supervisor/conf.d/my-app.ini'],
+      remoteCleanupStatus: 'CLEANED',
+      warnings: ['log dir kept'],
+      commandResults: {
+        deleteRemote: {
+          exitCode: 0,
+          stdout: 'removed /etc/supervisor/conf.d/my-app.ini',
+        },
+      },
+    });
   });
 
   it('startService uses POST /services/:name/start with host in query params', async () => {

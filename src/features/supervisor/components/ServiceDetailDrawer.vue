@@ -12,8 +12,8 @@
     <template v-else-if="detail">
       <el-alert
         v-if="detail.isArchived"
-        title="只读归档"
-        description="该服务已归档，不可执行同步等纳管操作。"
+        title="归档服务"
+        description="运行与同步类动作已禁用，但可执行还原或删除。"
         type="info"
         :closable="false"
         show-icon
@@ -24,16 +24,53 @@
         <StatusTag :state="detail.status" />
         <ManageModeTag :mode="detail.manageMode" />
         <el-tag v-if="detail.isArchived" type="danger" effect="plain">已归档</el-tag>
-        <el-button
-          v-if="!detail.isArchived"
-          :icon="Refresh"
-          size="small"
-          plain
-          :loading="syncing"
-          @click="handleSync"
-        >
-          同步现场
-        </el-button>
+        <div class="service-detail__toolbar-actions">
+          <el-button
+            v-if="!detail.isArchived"
+            :icon="Refresh"
+            size="small"
+            plain
+            :loading="syncing"
+            :disabled="!!lifecycleActionLoading"
+            data-testid="detail-action-sync"
+            @click="handleSync"
+          >
+            同步现场
+          </el-button>
+          <el-button
+            v-if="!detail.isArchived"
+            size="small"
+            plain
+            type="warning"
+            :loading="lifecycleActionLoading === 'archive'"
+            data-testid="detail-action-archive"
+            @click="emitLifecycleAction('archive')"
+          >
+            归档
+          </el-button>
+          <el-button
+            v-if="detail.isArchived"
+            size="small"
+            plain
+            type="primary"
+            :loading="lifecycleActionLoading === 'restore'"
+            data-testid="detail-action-restore"
+            @click="emitLifecycleAction('restore')"
+          >
+            还原
+          </el-button>
+          <el-button
+            v-if="detail.isArchived"
+            size="small"
+            plain
+            type="danger"
+            :loading="lifecycleActionLoading === 'delete'"
+            data-testid="detail-action-delete"
+            @click="emitLifecycleAction('delete')"
+          >
+            删除
+          </el-button>
+        </div>
       </div>
 
       <section class="service-detail__section">
@@ -157,7 +194,7 @@
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 import { syncService } from '@/api/supervisor/supervisorApi';
 import type { SupervisorServiceDetail, ServiceSyncResponse } from '@/api/supervisor/supervisor.types';
@@ -169,15 +206,40 @@ const props = defineProps<{
   modelValue: boolean;
   loading: boolean;
   detail: SupervisorServiceDetail | null;
+  lifecycleActionLoading?: 'archive' | 'restore' | 'delete' | null;
 }>();
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
   sync: [detail: SupervisorServiceDetail];
+  archive: [detail: SupervisorServiceDetail];
+  restore: [detail: SupervisorServiceDetail];
+  delete: [detail: SupervisorServiceDetail];
 }>();
 
 const syncing = ref(false);
 const syncResult = ref<ServiceSyncResponse | null>(null);
+
+watch(
+  [() => props.modelValue, () => props.detail?.programName],
+  () => {
+    syncResult.value = null;
+  },
+);
+
+function emitLifecycleAction(action: 'archive' | 'restore' | 'delete') {
+  if (!props.detail) return;
+
+  if (action === 'archive') {
+    emit('archive', props.detail);
+    return;
+  }
+  if (action === 'restore') {
+    emit('restore', props.detail);
+    return;
+  }
+  emit('delete', props.detail);
+}
 
 async function handleSync() {
   if (!props.detail) return;
@@ -218,6 +280,14 @@ async function handleSync() {
   gap: 8px;
   margin-bottom: 20px;
   flex-wrap: wrap;
+}
+
+.service-detail__toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
 }
 
 .service-detail__descriptions--compact {

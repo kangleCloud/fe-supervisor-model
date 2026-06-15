@@ -221,8 +221,11 @@ interface RawServiceUpdateResponse {
 interface RawServiceDeleteResponse {
   host: string;
   contentProgramName: string;
+  deletedRecordId: number;
   deletedConfigPath: string;
-  backupPath: string | null;
+  deletedRemotePaths: string[];
+  remoteCleanupStatus: string;
+  warnings: string[];
   commandResults?: Record<string, unknown>;
 }
 
@@ -463,8 +466,11 @@ function normalizeServiceDeleteResponse(response: RawServiceDeleteResponse) {
   return {
     host: response.host,
     programName: response.contentProgramName,
+    deletedRecordId: response.deletedRecordId,
     deletedConfigPath: response.deletedConfigPath,
-    backupPath: response.backupPath,
+    deletedRemotePaths: response.deletedRemotePaths,
+    remoteCleanupStatus: response.remoteCleanupStatus,
+    warnings: response.warnings,
     commandResults: normalizeCommandResultCollection(response.commandResults),
   };
 }

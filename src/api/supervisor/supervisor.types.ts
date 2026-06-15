@@ -280,8 +280,11 @@ export interface ServiceUpdateResponse {
 export interface ServiceDeleteResponse {
   host: string;
   programName: string;
+  deletedRecordId: number;
   deletedConfigPath: string;
-  backupPath: string | null;
+  deletedRemotePaths: string[];
+  remoteCleanupStatus: string;
+  warnings: string[];
   commandResults?: CommandResultCollection;
 }
 
